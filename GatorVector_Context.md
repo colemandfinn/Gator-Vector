@@ -61,4 +61,12 @@ Retrieval practice as the default interaction; spaced-repetition (FSRS-style) sc
 - **Storage:** browser local storage + export/import.
 
 ## Current status
-Phase 0, in progress. Mac with Xcode installed; GitHub account created; VS Code being installed. Both research files complete. No app code written yet.
+**Phase 1 complete — Table Reading vertical slice is done.** The full procedural engine is built and committed: label↔index helper, grid generator, item generator (v1 neighbor-based distractors), and the drill loop, each in its own file under `src/tableReading/`. The app (`index.html`) runs end to end client-side: a **timed drill** (40 items, 7:00 clock, test-conditions with no per-item feedback) and an **untimed practice mode** (immediate explanatory feedback, open-ended), plus number-correct scoring (no guessing penalty) and best-score persistence in local storage. Logic is covered by a zero-tooling test page (`test.html`) that loads the source directly and prints PASS/FAIL — all passing. Six commits so far. This proves the reusable pattern (generator → drill → timer/scoring → local storage → one clean screen) for the remaining procedural subtests.
+
+**Next: Phase 2 — remaining procedural subtests:** Math Knowledge, then Arithmetic Reasoning, then the rendered Block Counting & Instrument Comprehension.
+
+**Open flags carried forward (still need cadet-tester feedback)** — both from the Table Reading spec, neither a launch blocker:
+- **Negative cell values** — unconfirmed whether real Form T tables ever contain negative numbers in cells (v1 uses non-negative 0–99; `cellValueRange` is the single knob to flip if confirmed).
+- **Timing — paper vs. eAFOQT** — paper Table Reading is 40 items / 7 min, but eAFOQT per-section timing may differ and isn't independently confirmed (default 420 s; `timeLimitSeconds`/`itemCount` are configurable for exactly this reason).
+
+*Foundations (Phase 0) done earlier: Mac with Xcode, GitHub account, VS Code, both research files complete, Table Reading spec locked.*

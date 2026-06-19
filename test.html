@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>GatorVector — Table Reading: label↔index tests</title>
+  <title>GatorVector — Table Reading tests</title>
   <style>
     body { font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; margin: 2rem; }
     h1 { font-size: 1.1rem; }
@@ -15,32 +15,49 @@
   </style>
 </head>
 <body>
-  <h1>Table Reading — label↔index corner cases</h1>
+  <h1>Table Reading — tests</h1>
   <div id="results"></div>
   <div id="summary"></div>
 
-  <!-- Zero tooling: load the source file directly, then run assertions below. -->
+  <!-- Zero tooling: load the source files directly, then run assertions below. -->
   <script src="src/tableReading/labelIndex.js"></script>
+  <script src="src/tableReading/gridGenerator.js"></script>
   <script>
     (function () {
       var labelToIndex = window.TableReading.labelToIndex;
       var indexToLabel = window.TableReading.indexToLabel;
+      var generateGrid = window.TableReading.generateGrid;
+      var lookup = window.TableReading.lookup;
 
       var results = document.getElementById("results");
       var passed = 0, failed = 0;
 
-      function check(description, actual, expected) {
-        var ok = actual === expected;
-        ok ? passed++ : failed++;
-        var row = document.createElement("div");
-        row.className = "case " + (ok ? "pass" : "fail");
-        row.textContent =
-          (ok ? "PASS" : "FAIL") + " — " + description +
-          " (got " + actual + ", expected " + expected + ")";
-        results.appendChild(row);
+      function row(ok, text) {
+        passed += ok ? 1 : 0; failed += ok ? 0 : 1;
+        var el = document.createElement("div");
+        el.className = "case " + (ok ? "pass" : "fail");
+        el.textContent = (ok ? "PASS" : "FAIL") + " — " + text;
+        results.appendChild(el);
       }
 
-      // labelToIndex corner cases (spec: index = label + 17)
+      function check(description, actual, expected) {
+        row(actual === expected,
+          description + " (got " + actual + ", expected " + expected + ")");
+      }
+
+      function assert(description, ok) {
+        row(!!ok, description);
+      }
+
+      function heading(text) {
+        var el = document.createElement("h2");
+        el.style.cssText = "font-size:0.95rem;margin:1rem 0 0.25rem;";
+        el.textContent = text;
+        results.appendChild(el);
+      }
+
+      // --- label<->index corner cases (spec: index = label + 17) ----------
+      heading("label↔index corner cases");
       check("labelToIndex(-17) === 0", labelToIndex(-17), 0);
       check("labelToIndex(0) === 17",  labelToIndex(0), 17);
       check("labelToIndex(17) === 34", labelToIndex(17), 34);
@@ -49,6 +66,40 @@
       check("indexToLabel(0) === -17", indexToLabel(0), -17);
       check("indexToLabel(17) === 0",  indexToLabel(17), 0);
       check("indexToLabel(34) === 17", indexToLabel(34), 17);
+
+      // --- grid generator -------------------------------------------------
+      heading("grid generator");
+      var grid = generateGrid(); // defaults: axisRange 17, cellValueRange [0,99]
+
+      // 35x35: outer length 35, and every row also length 35.
+      var allRowsAre35 = grid.cells.every(function (r) { return r.length === 35; });
+      check("grid has 35 rows", grid.cells.length, 35);
+      assert("every row has 35 columns", allRowsAre35);
+
+      // Every cell value is an integer within [0, 99].
+      var allInRange = true, offending = null;
+      for (var r = 0; r < grid.cells.length; r++) {
+        for (var c = 0; c < grid.cells[r].length; c++) {
+          var v = grid.cells[r][c];
+          if (!Number.isInteger(v) || v < 0 || v > 99) {
+            allInRange = false; offending = v; break;
+          }
+        }
+        if (!allInRange) break;
+      }
+      assert("every cell is an integer in [0, 99]" +
+        (allInRange ? "" : " (found " + offending + ")"), allInRange);
+
+      // Known (X, Y) lookup returns the same value the grid holds at that cell.
+      // X = column, Y = row, so label (X,Y) -> cells[yIndex][xIndex].
+      var X = 5, Y = -3;
+      var xIndex = labelToIndex(X), yIndex = labelToIndex(Y);
+      check("lookup(grid, 5, -3) matches cells[yIndex][xIndex]",
+        lookup(grid, X, Y), grid.cells[yIndex][xIndex]);
+
+      // Corner lookup too (label (-17,-17) -> cells[0][0]).
+      check("lookup(grid, -17, -17) matches cells[0][0]",
+        lookup(grid, -17, -17), grid.cells[0][0]);
 
       var summary = document.getElementById("summary");
       summary.className = failed === 0 ? "ok" : "bad";

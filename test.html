@@ -24,6 +24,7 @@
   <script src="src/tableReading/gridGenerator.js"></script>
   <script src="src/tableReading/itemGenerator.js"></script>
   <script src="src/tableReading/drill.js"></script>
+  <script src="src/tableReading/scoring.js"></script>
   <script>
     (function () {
       var labelToIndex = window.TableReading.labelToIndex;
@@ -32,6 +33,7 @@
       var lookup = window.TableReading.lookup;
       var generateItem = window.TableReading.generateItem;
       var generateDrill = window.TableReading.generateDrill;
+      var scoreDrill = window.TableReading.scoreDrill;
 
       var results = document.getElementById("results");
       var passed = 0, failed = 0;
@@ -193,6 +195,27 @@
       assert("no two consecutive items share (X,Y)", noDup);
       assert("every drill item has 5 unique ascending options with correct present",
         oneDrill.items.every(isValidItem));
+
+      // --- scoring --------------------------------------------------------
+      heading("scoring");
+
+      // Known mix: a fabricated item list with explicit correctIndex values and
+      // a hand-picked answer array (answer = chosen option index, null = blank).
+      var scoringItems = [
+        { x: 1,  y: 1,  correctIndex: 0 }, // answer 0 -> correct
+        { x: 2,  y: 2,  correctIndex: 2 }, // answer 2 -> correct
+        { x: 3,  y: 3,  correctIndex: 1 }, // answer 3 -> WRONG
+        { x: 4,  y: 4,  correctIndex: 4 }, // answer null -> WRONG (unanswered)
+        { x: 5,  y: 5,  correctIndex: 3 }, // answer 3 -> correct
+      ];
+      var answers = [0, 2, 3, null, 3];
+      check("scoreDrill counts a known right/wrong mix (3 of 5)",
+        scoreDrill(scoringItems, answers), 3);
+      check("scoreDrill all-correct", scoreDrill(scoringItems, [0, 2, 1, 4, 3]), 5);
+      check("scoreDrill all-blank (no guessing penalty, just 0)",
+        scoreDrill(scoringItems, [null, null, null, null, null]), 0);
+      check("scoreDrill with missing answers array treats all as wrong",
+        scoreDrill(scoringItems, []), 0);
 
       var summary = document.getElementById("summary");
       summary.className = failed === 0 ? "ok" : "bad";

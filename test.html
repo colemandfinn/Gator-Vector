@@ -23,6 +23,7 @@
   <script src="src/tableReading/labelIndex.js"></script>
   <script src="src/tableReading/gridGenerator.js"></script>
   <script src="src/tableReading/itemGenerator.js"></script>
+  <script src="src/tableReading/drill.js"></script>
   <script>
     (function () {
       var labelToIndex = window.TableReading.labelToIndex;
@@ -30,6 +31,7 @@
       var generateGrid = window.TableReading.generateGrid;
       var lookup = window.TableReading.lookup;
       var generateItem = window.TableReading.generateItem;
+      var generateDrill = window.TableReading.generateDrill;
 
       var results = document.getElementById("results");
       var passed = 0, failed = 0;
@@ -146,6 +148,51 @@
         corner.options.length === 5 &&
         new Set(corner.options).size === 5 &&
         corner.options.every(function (v, i) { return i === 0 || corner.options[i - 1] < v; }));
+
+      // --- drill loop -----------------------------------------------------
+      heading("drill loop");
+
+      function isValidItem(item) {
+        if (item.options.length !== 5) return false;
+        if (new Set(item.options).size !== 5) return false;
+        var correct = lookup(grid, item.x, item.y);
+        if (item.options.indexOf(correct) === -1) return false;
+        if (item.options[item.correctIndex] !== correct) return false;
+        for (var i = 1; i < 5; i++) if (item.options[i - 1] >= item.options[i]) return false;
+        return true;
+      }
+
+      // Run many drills so the "no back-to-back duplicate" rule is exercised
+      // across thousands of consecutive-item boundaries, not just one drill.
+      var DRILLS = 50, drillsOk = 0, drillFail = null;
+      for (var d = 0; d < DRILLS; d++) {
+        var drill = generateDrill(grid); // default itemCount 40
+        var problems = [];
+        if (drill.items.length !== 40) problems.push("count " + drill.items.length);
+        for (var i = 1; i < drill.items.length; i++) {
+          var a = drill.items[i - 1], b = drill.items[i];
+          if (a.x === b.x && a.y === b.y) { problems.push("dup coord at " + i); break; }
+        }
+        for (var j = 0; j < drill.items.length; j++) {
+          if (!isValidItem(drill.items[j])) { problems.push("bad item at " + j); break; }
+        }
+        if (problems.length === 0) drillsOk++;
+        else if (!drillFail) drillFail = problems.join("; ");
+      }
+      assert(drillsOk + "/" + DRILLS + " drills: 40 items, no back-to-back dup coords, all items valid" +
+        (drillFail ? " — first failure: " + drillFail : ""), drillsOk === DRILLS);
+
+      // Concrete single-drill spot checks.
+      var oneDrill = generateDrill(grid);
+      check("drill produces exactly 40 items", oneDrill.items.length, 40);
+      var noDup = true;
+      for (var k = 1; k < oneDrill.items.length; k++) {
+        var p = oneDrill.items[k - 1], c = oneDrill.items[k];
+        if (p.x === c.x && p.y === c.y) { noDup = false; break; }
+      }
+      assert("no two consecutive items share (X,Y)", noDup);
+      assert("every drill item has 5 unique ascending options with correct present",
+        oneDrill.items.every(isValidItem));
 
       var summary = document.getElementById("summary");
       summary.className = failed === 0 ? "ok" : "bad";

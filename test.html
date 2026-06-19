@@ -22,12 +22,14 @@
   <!-- Zero tooling: load the source files directly, then run assertions below. -->
   <script src="src/tableReading/labelIndex.js"></script>
   <script src="src/tableReading/gridGenerator.js"></script>
+  <script src="src/tableReading/itemGenerator.js"></script>
   <script>
     (function () {
       var labelToIndex = window.TableReading.labelToIndex;
       var indexToLabel = window.TableReading.indexToLabel;
       var generateGrid = window.TableReading.generateGrid;
       var lookup = window.TableReading.lookup;
+      var generateItem = window.TableReading.generateItem;
 
       var results = document.getElementById("results");
       var passed = 0, failed = 0;
@@ -100,6 +102,50 @@
       // Corner lookup too (label (-17,-17) -> cells[0][0]).
       check("lookup(grid, -17, -17) matches cells[0][0]",
         lookup(grid, -17, -17), grid.cells[0][0]);
+
+      // --- item generator -------------------------------------------------
+      heading("item generator");
+
+      // Invariants that must hold for EVERY item. Run many to exercise random
+      // targets including edges/corners (where ring-widening kicks in).
+      function itemInvariants(item) {
+        var fails = [];
+        if (item.options.length !== 5) fails.push("not 5 options (" + item.options.length + ")");
+        if (new Set(item.options).size !== 5) fails.push("options not all unique");
+        var correct = lookup(grid, item.x, item.y);
+        if (item.options.indexOf(correct) === -1) fails.push("correct answer missing");
+        if (item.options[item.correctIndex] !== correct) fails.push("correctIndex wrong");
+        for (var i = 1; i < item.options.length; i++) {
+          if (item.options[i - 1] >= item.options[i]) { fails.push("not ascending"); break; }
+        }
+        return fails;
+      }
+
+      var N = 500, firstFail = null, okCount = 0;
+      for (var t = 0; t < N; t++) {
+        var f = itemInvariants(generateItem(grid));
+        if (f.length === 0) okCount++;
+        else if (!firstFail) firstFail = f.join("; ");
+      }
+      assert(okCount + "/" + N + " random items: 5 unique options, correct present, ascending" +
+        (firstFail ? " — first failure: " + firstFail : ""), okCount === N);
+
+      // Spot-check one item explicitly so the proof is concrete and readable.
+      var item = generateItem(grid, { x: 5, y: -3 });
+      check("item has exactly 5 options", item.options.length, 5);
+      assert("options all unique", new Set(item.options).size === 5);
+      assert("correct answer is among options",
+        item.options.indexOf(lookup(grid, 5, -3)) !== -1);
+      assert("options sorted ascending",
+        item.options.every(function (v, i) { return i === 0 || item.options[i - 1] < v; }));
+
+      // Corner target (-17,-17) — only 3 distance-1 neighbors exist, so this
+      // forces ring-widening; still must yield 5 unique ascending options.
+      var corner = generateItem(grid, { x: -17, y: -17 });
+      assert("corner item still 5 unique ascending options",
+        corner.options.length === 5 &&
+        new Set(corner.options).size === 5 &&
+        corner.options.every(function (v, i) { return i === 0 || corner.options[i - 1] < v; }));
 
       var summary = document.getElementById("summary");
       summary.className = failed === 0 ? "ok" : "bad";

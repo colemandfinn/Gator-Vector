@@ -33,6 +33,7 @@
       var lookup = window.TableReading.lookup;
       var generateItem = window.TableReading.generateItem;
       var generateDrill = window.TableReading.generateDrill;
+      var nextItem = window.TableReading.nextItem;
       var scoreDrill = window.TableReading.scoreDrill;
 
       var results = document.getElementById("results");
@@ -195,6 +196,18 @@
       assert("no two consecutive items share (X,Y)", noDup);
       assert("every drill item has 5 unique ascending options with correct present",
         oneDrill.items.every(isValidItem));
+
+      // nextItem (used by open-ended practice mode): each draw differs from the
+      // previous coordinate and is itself a valid item.
+      var prevI = null, seqOk = true, seqFail = null;
+      for (var n = 0; n < 500; n++) {
+        var it = nextItem(grid, prevI);
+        if (prevI && it.x === prevI.x && it.y === prevI.y) { seqOk = false; seqFail = "repeat at " + n; break; }
+        if (!isValidItem(it)) { seqOk = false; seqFail = "invalid at " + n; break; }
+        prevI = it;
+      }
+      assert("nextItem: 500 consecutive draws never repeat prev coord, all valid" +
+        (seqFail ? " — " + seqFail : ""), seqOk);
 
       // --- scoring --------------------------------------------------------
       heading("scoring");

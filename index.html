@@ -150,6 +150,35 @@
     table.review td.correct { color: var(--accent); font-weight: 600; }
     table.review td.chosen { color: var(--bad); }
     .allright { color: var(--accent); font-weight: 600; }
+
+    /* --- START mode picker --- */
+    .modepick { display: flex; gap: 0.75rem; margin: 0.75rem 0; flex-wrap: wrap; }
+    button.primary.alt { background: #fff; color: var(--accent); }
+    .modehint { color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
+
+    /* --- PRACTICE --- */
+    .tally {
+      font-weight: 700; font-size: 1.15rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .feedback {
+      border: 1px solid var(--line); border-radius: 8px; background: #fff;
+      padding: 0.6rem 0.9rem; font-size: 1.05rem; max-width: 640px;
+      margin: 0.25rem 0 0.75rem;
+    }
+    .feedback.right { border-color: var(--accent); background: #eef7f2; }
+    .feedback.wrong { border-color: var(--bad); background: #fdeeee; }
+    .feedback .verdict { font-weight: 700; }
+    .feedback.right .verdict { color: var(--accent); }
+    .feedback.wrong .verdict { color: var(--bad); }
+    .feedback .why { color: var(--muted); margin-top: 0.25rem; font-size: 0.9rem; }
+    .options button.opt-correct {
+      border-color: var(--accent); background: #eef7f2; color: var(--accent); font-weight: 700;
+    }
+    .options button.opt-wrong {
+      border-color: var(--bad); background: #fdeeee; color: var(--bad);
+    }
+    .options button:disabled { cursor: default; }
   </style>
 </head>
 <body>
@@ -159,11 +188,16 @@
 
     <!-- ============ START ============ -->
     <section id="screen-start">
-      <p>40 items. 7-minute clock. No feedback until the end — just like the real subtest.</p>
+      <p>Find the value at each (X, Y) coordinate in the grid.</p>
       <div id="best" class="best hidden"></div>
-      <div>
-        <button id="btn-start" class="primary">Start Drill</button>
+      <div class="modepick">
+        <button id="btn-start" class="primary">Timed Drill</button>
+        <button id="btn-practice" class="primary alt">Practice</button>
       </div>
+      <p class="modehint">
+        <strong>Timed Drill:</strong> 40 items, 7:00 clock, no feedback — real test conditions.<br>
+        <strong>Practice:</strong> untimed, immediate feedback after each answer; go as long as you like.
+      </p>
     </section>
 
     <!-- ============ DRILL ============ -->
@@ -179,6 +213,25 @@
       <div class="options" id="options"></div>
       <div class="gridscroll">
         <table class="grid" id="grid"></table>
+      </div>
+    </section>
+
+    <!-- ============ PRACTICE ============ -->
+    <section id="screen-practice" class="hidden">
+      <div class="drillbar">
+        <div class="tally" id="p-tally">0 correct of 0</div>
+        <button class="linklike" id="btn-end-practice">End practice</button>
+      </div>
+      <div class="question">
+        Find <span class="coord" id="p-coord">X = 0, Y = 0</span>
+      </div>
+      <div class="options" id="p-options"></div>
+      <div class="feedback hidden" id="p-feedback"></div>
+      <div id="p-next-wrap" class="hidden" style="margin: 0 0 0.75rem;">
+        <button id="btn-next" class="primary">Next →</button>
+      </div>
+      <div class="gridscroll">
+        <table class="grid" id="p-grid"></table>
       </div>
     </section>
 
@@ -208,7 +261,7 @@
       // --- tiny DOM helpers ---
       var $ = function (id) { return document.getElementById(id); };
       function show(name) {
-        ["start", "drill", "results"].forEach(function (s) {
+        ["start", "drill", "practice", "results"].forEach(function (s) {
           $("screen-" + s).classList.toggle("hidden", s !== name);
         });
       }
@@ -236,8 +289,9 @@
           "</strong> &nbsp;<span style='color:var(--muted)'>(" + best.date + ")</span>";
       }
 
-      // Build the 35x35 grid table ONCE per session. No target cell is marked.
-      function renderGrid(grid) {
+      // Build the 35x35 grid table ONCE per session into table#tableId. No
+      // target cell is marked — finding it unaided is the skill.
+      function renderGrid(grid, tableId) {
         var axis = grid.axisRange;
         var html = ["<thead><tr><th class='corner'>Y\\X</th>"];
         for (var x = -axis; x <= axis; x++) html.push("<th>" + fmt(x) + "</th>");
@@ -252,7 +306,7 @@
           html.push("</tr>");
         }
         html.push("</tbody>");
-        $("grid").innerHTML = html.join("");
+        $(tableId).innerHTML = html.join("");
       }
 
       // --- DRILL ---
@@ -264,7 +318,7 @@
         current = 0;
         timeLeft = TIME_LIMIT;
 
-        renderGrid(grid);
+        renderGrid(grid, "grid");
         renderQuestion();
         updateTimer();
         timerId = setInterval(tick, 1000);
@@ -357,10 +411,80 @@
         try { localStorage.setItem(BEST_KEY, JSON.stringify(record)); } catch (e) {}
       }
 
+      // --- PRACTICE (untimed, immediate feedback, open-ended) ---
+      var pGrid, pItem, pCount, pCorrect;
+
+      function startPractice() {
+        // Same engine: one grid per session, items drawn against it. No timer,
+        // no fixed item cap.
+        pGrid = TR.generateGrid();
+        pCount = 0;
+        pCorrect = 0;
+        renderGrid(pGrid, "p-grid");
+        updateTally();
+        nextPractice(null);
+        show("practice");
+      }
+
+      function updateTally() {
+        $("p-tally").textContent = pCorrect + " correct of " + pCount;
+      }
+
+      function nextPractice(prevItem) {
+        // Reuse the engine's back-to-back rule so practice never repeats the
+        // previous coordinate either.
+        pItem = TR.nextItem(pGrid, prevItem);
+        $("p-coord").textContent = "X = " + fmt(pItem.x) + ", Y = " + fmt(pItem.y);
+        $("p-feedback").classList.add("hidden");
+        $("p-next-wrap").classList.add("hidden");
+
+        var box = $("p-options");
+        box.innerHTML = "";
+        pItem.options.forEach(function (value, optionIndex) {
+          var b = document.createElement("button");
+          b.textContent = value;
+          b.addEventListener("click", function () { answerPractice(optionIndex); });
+          box.appendChild(b);
+        });
+      }
+
+      function answerPractice(optionIndex) {
+        var correctIndex = pItem.correctIndex;
+        var isRight = optionIndex === correctIndex;
+        pCount++;
+        if (isRight) pCorrect++;
+        updateTally();
+
+        // Lock the options and mark the correct one (and the wrong pick, if any).
+        var btns = $("p-options").children;
+        for (var i = 0; i < btns.length; i++) {
+          btns[i].disabled = true;
+          if (i === correctIndex) btns[i].classList.add("opt-correct");
+          else if (i === optionIndex) btns[i].classList.add("opt-wrong");
+        }
+
+        // Immediate explanatory feedback — about the ITEM, not the person.
+        var correctValue = pItem.options[correctIndex];
+        var fb = $("p-feedback");
+        fb.className = "feedback " + (isRight ? "right" : "wrong");
+        var lead = isRight
+          ? "<span class='verdict'>Correct.</span> The answer is <strong>" + correctValue + "</strong>."
+          : "<span class='verdict'>Not quite.</span> You chose " + pItem.options[optionIndex] +
+            "; the answer is <strong>" + correctValue + "</strong>.";
+        fb.innerHTML = lead +
+          "<div class='why'>That's the value sitting at column X = " + fmt(pItem.x) +
+          ", row Y = " + fmt(pItem.y) + " in the grid.</div>";
+
+        $("p-next-wrap").classList.remove("hidden");
+      }
+
       // --- wiring ---
       $("btn-start").addEventListener("click", startDrill);
+      $("btn-practice").addEventListener("click", startPractice);
       $("btn-again").addEventListener("click", function () { renderBest(); startDrill(); });
       $("btn-end").addEventListener("click", endDrill);
+      $("btn-next").addEventListener("click", function () { nextPractice(pItem); });
+      $("btn-end-practice").addEventListener("click", function () { renderBest(); show("start"); });
 
       renderBest();
       show("start");

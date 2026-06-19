@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>GatorVector — Table Reading: label↔index tests</title>
+  <style>
+    body { font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; margin: 2rem; }
+    h1 { font-size: 1.1rem; }
+    .case { padding: 2px 0; }
+    .pass { color: #137333; }
+    .fail { color: #c5221f; font-weight: bold; }
+    #summary { margin-top: 1rem; font-weight: bold; }
+    #summary.ok { color: #137333; }
+    #summary.bad { color: #c5221f; }
+  </style>
+</head>
+<body>
+  <h1>Table Reading — label↔index corner cases</h1>
+  <div id="results"></div>
+  <div id="summary"></div>
+
+  <!-- Zero tooling: load the source file directly, then run assertions below. -->
+  <script src="src/tableReading/labelIndex.js"></script>
+  <script>
+    (function () {
+      var labelToIndex = window.TableReading.labelToIndex;
+      var indexToLabel = window.TableReading.indexToLabel;
+
+      var results = document.getElementById("results");
+      var passed = 0, failed = 0;
+
+      function check(description, actual, expected) {
+        var ok = actual === expected;
+        ok ? passed++ : failed++;
+        var row = document.createElement("div");
+        row.className = "case " + (ok ? "pass" : "fail");
+        row.textContent =
+          (ok ? "PASS" : "FAIL") + " — " + description +
+          " (got " + actual + ", expected " + expected + ")";
+        results.appendChild(row);
+      }
+
+      // labelToIndex corner cases (spec: index = label + 17)
+      check("labelToIndex(-17) === 0", labelToIndex(-17), 0);
+      check("labelToIndex(0) === 17",  labelToIndex(0), 17);
+      check("labelToIndex(17) === 34", labelToIndex(17), 34);
+
+      // indexToLabel — reverse direction
+      check("indexToLabel(0) === -17", indexToLabel(0), -17);
+      check("indexToLabel(17) === 0",  indexToLabel(17), 0);
+      check("indexToLabel(34) === 17", indexToLabel(34), 17);
+
+      var summary = document.getElementById("summary");
+      summary.className = failed === 0 ? "ok" : "bad";
+      summary.textContent =
+        failed === 0
+          ? "ALL PASS — " + passed + "/" + (passed + failed)
+          : failed + " FAILED — " + passed + "/" + (passed + failed) + " passed";
+    })();
+  </script>
+</body>
+</html>

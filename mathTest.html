@@ -24,11 +24,13 @@
   <!-- Zero tooling: load the source files directly, then run assertions below. -->
   <script src="src/mathKnowledge/cleanAnswer.js"></script>
   <script src="src/mathKnowledge/linearEquation.js"></script>
+  <script src="src/mathKnowledge/area.js"></script>
   <script>
     (function () {
       var MK = window.MathKnowledge;
       var clean = MK.cleanAnswer;
       var linear = MK.linearEquation;
+      var area = MK.area;
 
       var results = document.getElementById("results");
       var passed = 0, failed = 0;
@@ -256,6 +258,120 @@
         });
         note(level + ":  " + ex.equation + "   options → " + tags.join("  "));
       });
+
+      // ================================================================
+      //  AREA CARTRIDGE (rectangle & circle) — same assertion groups
+      //  π convention is 22/7 with radius = 7k (F-4), so every value is an
+      //  exact clean integer. Rectangle is the §4.1.1 floor stress test.
+      // ================================================================
+      var AREA_LEVELS = ["easy", "medium", "hard"];
+      var AREA_SHAPES = ["rectangle", "circle"];
+
+      // --- clean answers (§3): every correct area is a positive clean int ---
+      heading("AREA — clean answers, every item (§3)");
+      var aRng = mulberry32(50607080);
+      var ACN = 6000, aCleanOk = 0, aCleanFail = null;
+      for (var ai = 0; ai < ACN; ai++) {
+        var ap = area.generate(AREA_LEVELS[ai % 3], { rng: aRng });
+        var aok = clean.isCleanInteger(ap.answer) && ap.answer > 0;
+        // independently re-derive the area to confirm the construction is clean
+        if (aok && ap.shape === "rectangle") aok = (ap.answer === ap.L * ap.W);
+        if (aok && ap.shape === "circle") aok = (ap.answer === 154 * ap.k * ap.k); // (22/7)(7k)^2
+        if (aok) aCleanOk++;
+        else if (!aCleanFail) aCleanFail = ap.shape + " answer=" + ap.answer;
+      }
+      assert(aCleanOk + "/" + ACN + " items: correct area is a positive clean integer, exactly derived" +
+        (aCleanFail ? " — first failure: " + aCleanFail : ""), aCleanOk === ACN);
+
+      // --- all five options clean (§4.1.7) --------------------------------
+      heading("AREA — all five options clean, every item (§4.1.7)");
+      var aRng2 = mulberry32(11223344);
+      var AAN = 6000, aAllOk = 0, aAllFail = null;
+      for (var aj = 0; aj < AAN; aj++) {
+        var ait = area.buildItem(AREA_LEVELS[aj % 3], { rng: aRng2 });
+        var uglyA = ait.options.filter(function (v) { return !clean.isCleanInteger(v); });
+        if (uglyA.length === 0) aAllOk++;
+        else if (!aAllFail) aAllFail = ait.shape + ": ugly " + uglyA.join(",") + " [" + ait.options.join(",") + "]";
+      }
+      assert(aAllOk + "/" + AAN + " items: all 5 options are clean integers (§4.1.7)" +
+        (aAllFail ? " — first failure: " + aAllFail : ""), aAllOk === AAN);
+
+      // --- distractor count/uniqueness + >=2 real patterns (§4.1.1/§4.1.6) -
+      // Rectangle is the cartridge that justifies the floor being 2: it has only
+      // ~2 rock-solid mistakes, so this proves it clears 2 honestly. Circle
+      // clears 3. Both are exercised explicitly via forced shapes.
+      heading("AREA — 4 distinct distractors, >=2 real patterns (§4.1.1, §4.1.6)");
+      var aRng3 = mulberry32(95135790);
+      var ADN = 6000, aDistOk = 0, aDistFail = null;
+      var rectMin = 99, circMin = 99; // track the worst real-pattern count seen per shape
+      for (var ak = 0; ak < ADN; ak++) {
+        var shape = AREA_SHAPES[ak % 2];
+        var dit = area.buildItem(AREA_LEVELS[ak % 3], { rng: aRng3, shape: shape });
+        var probs = [];
+        if (dit.options.length !== 5) probs.push("not 5 options");
+        if (new Set(dit.options).size !== 5) probs.push("options not distinct");
+        if (dit.options[dit.correctIndex] !== dit.answer) probs.push("correctIndex wrong");
+        var ds = dit.optionMeta.filter(function (o) { return !o.correct; });
+        if (ds.length !== 4) probs.push("not exactly 4 distractors");
+        var errCount = ds.filter(function (o) { return o.kind === "error"; }).length;
+        if (errCount < 2) probs.push("only " + errCount + " real patterns");
+        if (shape === "rectangle" && errCount < rectMin) rectMin = errCount;
+        if (shape === "circle" && errCount < circMin) circMin = errCount;
+        if (probs.length === 0) aDistOk++;
+        else if (!aDistFail) aDistFail = shape + ": " + probs.join("; ") + " [" + dit.options.join(",") + "]";
+      }
+      assert(aDistOk + "/" + ADN + " items: 5 distinct options, exactly 4 distractors, >=2 real patterns" +
+        (aDistFail ? " — first failure: " + aDistFail : ""), aDistOk === ADN);
+      assert("rectangle clears the floor honestly (min real patterns seen = " + rectMin + ", floor 2)", rectMin >= 2);
+      note("circle min real patterns seen = " + circMin + " (clears 3 comfortably)");
+
+      // --- spread: no clustering tell (§4.1.3), checked per shape ----------
+      heading("AREA — no clustering outlier (§4.1.3)");
+      AREA_SHAPES.forEach(function (shape, si) {
+        var sRng = mulberry32(60708090 + si);
+        var ASN = 4000, aSpreadOk = 0, aWorst = 0, aSpreadFail = null;
+        for (var sj = 0; sj < ASN; sj++) {
+          var sit = area.buildItem(AREA_LEVELS[sj % 3], { rng: sRng, shape: shape });
+          var sorted = sit.options.slice().sort(function (x, y) { return x - y; });
+          var range = sorted[4] - sorted[0];
+          var maxGap = 0;
+          for (var g = 1; g < 5; g++) { var gap = sorted[g] - sorted[g - 1]; if (gap > maxGap) maxGap = gap; }
+          var ratio = maxGap / range;
+          if (ratio > aWorst) aWorst = ratio;
+          if (ratio <= 0.6) aSpreadOk++;
+          else if (!aSpreadFail) aSpreadFail = shape + ": gap/range=" + ratio.toFixed(2) + " [" + sorted.join(",") + "]";
+        }
+        assert(shape + ": " + aSpreadOk + "/" + ASN + " items have largest gap <= 60% of range" +
+          (aSpreadFail ? " — first failure: " + aSpreadFail : ""), aSpreadOk === ASN);
+        note(shape + " worst gap/range ratio: " + aWorst.toFixed(3) + " (threshold 0.60)");
+      });
+
+      // --- position: correct slot roughly uniform across A-E (§4.1.5) -----
+      heading("AREA — correct slot roughly uniform across A–E (§4.1.5)");
+      var aRngP = mulberry32(24681357);
+      var APN = 6000, aBuckets = [0, 0, 0, 0, 0];
+      for (var apI = 0; apI < APN; apI++) {
+        var apit = area.buildItem(AREA_LEVELS[apI % 3], { rng: aRngP });
+        aBuckets[apit.correctIndex]++;
+      }
+      var aExpected = APN / 5;
+      var aPosOk = aBuckets.every(function (n) { return n >= aExpected * 0.85 && n <= aExpected * 1.15; });
+      assert("correct-slot counts within ±15% of " + aExpected + ": [" + aBuckets.join(", ") + "]", aPosOk);
+
+      // --- concrete area samples, printed for eyeballing (F-2/F-4 pending) --
+      heading("AREA — concrete sample items (eyeball check)");
+      var aRngEx = mulberry32(31);
+      AREA_SHAPES.forEach(function (shape) {
+        ["easy", "hard"].forEach(function (level) {
+          var ex2 = area.buildItem(level, { rng: aRngEx, shape: shape });
+          var tags2 = ex2.optionMeta.map(function (o) {
+            return o.value + (o.correct ? "✓" : "[" + (o.kind === "error" ? o.pattern : "filler") + "]");
+          });
+          note(shape + "/" + level + ":  " + ex2.prompt + "   options → " + tags2.join("  "));
+        });
+      });
+      note("FLAG F-4 (§4.2/§7): circle π convention = 22/7 with radius = 7k, chosen so every " +
+        "option is an exact clean integer; realism still pending cadet-tester validation (F-2).");
 
       var summary = document.getElementById("summary");
       summary.className = failed === 0 ? "ok" : "bad";

@@ -26,13 +26,34 @@
   <script src="src/mathKnowledge/linearEquation.js"></script>
   <script src="src/mathKnowledge/area.js"></script>
   <script src="src/mathKnowledge/exponents.js"></script>
+  <script src="src/mathKnowledge/engine.js"></script>
+  <script src="src/mathKnowledge/registerCartridges.js"></script>
   <script>
     (function () {
       var MK = window.MathKnowledge;
       var clean = MK.cleanAnswer;
-      var linear = MK.linearEquation;
-      var area = MK.area;
-      var exponents = MK.exponents;
+      var engine = MK.engine;
+
+      // Item assembly was lifted out of the cartridges into the engine. The
+      // cartridge assertion groups below still call `.buildItem(difficulty,
+      // opts)`, so we route that through engine.buildItem via a thin per-cartridge
+      // alias — which genuinely exercises the engine's assembly too. The alias
+      // re-attaches the cartridge-specific display fields (equation/shape/subtype)
+      // those groups reference, without putting them back on the real cartridge.
+      function withEngineBuild(cart) {
+        var o = Object.create(cart);
+        o.buildItem = function (difficulty, opts) {
+          var it = engine.buildItem(cart, difficulty, opts);
+          it.equation = it.problem.equation;
+          it.shape = it.problem.shape;
+          it.subtype = it.problem.subtype;
+          return it;
+        };
+        return o;
+      }
+      var linear = withEngineBuild(MK.linearEquation);
+      var area = withEngineBuild(MK.area);
+      var exponents = withEngineBuild(MK.exponents);
 
       var results = document.getElementById("results");
       var passed = 0, failed = 0;
@@ -483,6 +504,82 @@
       });
       note("Negative exponents are excluded by design: a^(-n) = 1/a^n is a fraction, which would " +
         "violate §4.1.7. Zero exponents allowed (a^0 = 1, integer). Range mapping flagged F-1.");
+
+      // ================================================================
+      //  ENGINE + REGISTRY (§2) — routing, assembly, interleaving, scoring
+      // ================================================================
+      heading("ENGINE — registry routes the three cartridges (§2.1/§2.2)");
+      assert("registry holds all 3 cartridges: " + engine.cartridges().map(function (c) { return c.id; }).join(", "),
+        engine.cartridges().length === 3);
+      assert("byId resolves linear/area/exponents and rejects unknown",
+        !!engine.byId("linear") && !!engine.byId("area") && !!engine.byId("exponents") && !engine.byId("nope"));
+
+      heading("ENGINE — buildItem assembles valid clean items for every cartridge");
+      var enRng = mulberry32(192837465);
+      var ENB = 6000, enOk = 0, enFail = null;
+      var realCarts = [MK.linearEquation, MK.area, MK.exponents];
+      for (var bi = 0; bi < ENB; bi++) {
+        var cart = realCarts[bi % 3];
+        var it = engine.buildItem(cart, ["easy", "medium", "hard"][bi % 3], { rng: enRng });
+        var probs = [];
+        if (it.cartridge !== cart.id) probs.push("wrong cartridge id");
+        if (it.options.length !== 5 || new Set(it.options).size !== 5) probs.push("not 5 distinct options");
+        if (it.options[it.correctIndex] !== it.answer) probs.push("correctIndex wrong");
+        if (!it.options.every(function (v) { return clean.isCleanInteger(v); })) probs.push("unclean option");
+        if (!it.prompt || it.prompt.length < 3) probs.push("missing prompt");
+        if (!it.explain || it.explain.length < 5) probs.push("missing explanation");
+        if (probs.length === 0) enOk++;
+        else if (!enFail) enFail = cart.id + ": " + probs.join("; ");
+      }
+      assert(enOk + "/" + ENB + " engine items: right cartridge, 5 clean distinct options, prompt + method present" +
+        (enFail ? " — first failure: " + enFail : ""), enOk === ENB);
+
+      heading("ENGINE — drill is interleaved, 25 items, all 3 types (spec intent)");
+      var drRng = mulberry32(564738291);
+      var DRILLS = 300, drillOk = 0, drillFail = null;
+      var typeTotals = { linear: 0, area: 0, exponents: 0 };
+      for (var di = 0; di < DRILLS; di++) {
+        var dr = engine.generateDrill({ rng: drRng });
+        var probs2 = [];
+        if (dr.items.length !== 25) probs2.push("count " + dr.items.length);
+        var types = {};
+        dr.items.forEach(function (x) { types[x.cartridge] = (types[x.cartridge] || 0) + 1; typeTotals[x.cartridge]++; });
+        if (Object.keys(types).length !== 3) probs2.push("missing a type");
+        var run = 1, maxRun = 1;
+        for (var i = 1; i < dr.items.length; i++) {
+          if (dr.items[i].cartridge === dr.items[i - 1].cartridge) { run++; if (run > maxRun) maxRun = run; }
+          else run = 1;
+        }
+        if (maxRun > 2) probs2.push("run of " + maxRun);          // round-robin caps runs at 2
+        if (probs2.length === 0) drillOk++;
+        else if (!drillFail) drillFail = probs2.join("; ");
+      }
+      assert(drillOk + "/" + DRILLS + " drills: 25 items, all 3 types present, no run of one type > 2" +
+        (drillFail ? " — first failure: " + drillFail : ""), drillOk === DRILLS);
+      note("type balance over " + DRILLS + " drills: " + JSON.stringify(typeTotals) + " (round-robin keeps them even)");
+
+      heading("ENGINE — scoring & review (no guessing penalty)");
+      var sItems = [
+        { correctIndex: 0, options: [10, 20, 30, 40, 50], prompt: "p1", explain: "e1" },
+        { correctIndex: 2, options: [1, 2, 3, 4, 5], prompt: "p2", explain: "e2" },
+        { correctIndex: 4, options: [5, 6, 7, 8, 9], prompt: "p3", explain: "e3" },
+      ];
+      check("scoreDrill counts a right/wrong mix (2 of 3)", engine.scoreDrill(sItems, [0, 1, 4]), 2);
+      check("scoreDrill all-blank is 0 (no penalty)", engine.scoreDrill(sItems, [null, null, null]), 0);
+      var rev = engine.reviewMissed(sItems, [0, 1, null]);
+      assert("reviewMissed lists the 2 wrong with chosen/correct/method",
+        rev.length === 2 && rev[0].number === 2 && rev[0].chosen === 2 && rev[0].correct === 3 &&
+        rev[0].explain === "e2" && rev[1].chosen === null && rev[1].correct === 9);
+
+      heading("ENGINE — practice nextItem never repeats the exact prompt back-to-back");
+      var niRng = mulberry32(101010101);
+      var prev = null, reps = 0;
+      for (var ni = 0; ni < 3000; ni++) {
+        var nit = engine.nextItem(prev, { rng: niRng });
+        if (prev && nit.prompt === prev.prompt) reps++;
+        prev = nit;
+      }
+      assert("0 exact back-to-back repeats over 3000 practice draws (got " + reps + ")", reps === 0);
 
       var summary = document.getElementById("summary");
       summary.className = failed === 0 ? "ok" : "bad";

@@ -218,40 +218,22 @@
     return picks;
   }
 
-  // --- buildItem(difficulty) -> full 5-option item --------------------------
-  // Assembles correct + 4 distractors, randomizes position (§4.1.5), records
-  // correctIndex. Assembly lives here for now (self-contained, testable); a
-  // candidate to lift into the shared engine later (§2.4), once it exists.
-  function buildItem(difficulty, options) {
-    options = options || {};
-    var rng = options.rng || Math.random;
-    var problem = generate(difficulty, options);
-    var dists = distractors(problem, { rng: rng });
-
-    var pool = [{ value: problem.answer, kind: "correct", pattern: null, correct: true }];
-    for (var i = 0; i < dists.length; i++) {
-      pool.push({ value: dists[i].value, kind: dists[i].kind, pattern: dists[i].pattern, correct: false });
+  // --- explain(problem) -> one-line method (practice-mode feedback) ---------
+  // The cartridge owns the math; the engine stays math-free. Assembly (shuffle /
+  // 5-option pooling / correctIndex) now lives in the shared engine, lifted out
+  // of every cartridge per §2.4/§6.5.
+  function explain(problem) {
+    var a = problem.a, m = problem.m, n = problem.n;
+    if (problem.subtype === "product") {
+      return "Same base multiplied → ADD the exponents:  " + a + sup(m) + " · " + a + sup(n) +
+        " = " + a + sup(m + n) + " = " + problem.answer + ".";
     }
-
-    // Fisher-Yates shuffle so the correct slot (A-E) is uniformly random.
-    for (var j = pool.length - 1; j > 0; j--) {
-      var rr = Math.floor(rng() * (j + 1));
-      var tmp = pool[j]; pool[j] = pool[rr]; pool[rr] = tmp;
+    if (problem.subtype === "power") {
+      return "Power of a power → MULTIPLY the exponents:  (" + a + sup(m) + ")" + sup(n) +
+        " = " + a + sup(m * n) + " = " + problem.answer + ".";
     }
-
-    var optionValues = pool.map(function (pp) { return pp.value; });
-    var correctIndex = -1;
-    for (var m = 0; m < pool.length; m++) if (pool[m].correct) correctIndex = m;
-
-    return {
-      problem: problem,
-      subtype: problem.subtype,
-      prompt: problem.prompt,
-      answer: problem.answer,
-      options: optionValues,
-      correctIndex: correctIndex,
-      optionMeta: pool,
-    };
+    return "Anything to the 0 power is 1, so " + a + sup(0) + " = 1:  " +
+      a + sup(m) + " · " + a + sup(0) + " = " + a + sup(m) + " = " + problem.answer + ".";
   }
 
   var cartridge = {
@@ -260,7 +242,7 @@
     RANGES: RANGES,
     generate: generate,
     distractors: distractors,
-    buildItem: buildItem,
+    explain: explain,
   };
 
   if (typeof module !== "undefined" && module.exports) {

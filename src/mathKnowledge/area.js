@@ -199,41 +199,17 @@
     return picks;
   }
 
-  // --- buildItem(difficulty) -> full 5-option item --------------------------
-  // Assembles correct + 4 distractors, randomizes position (§4.1.5), records
-  // correctIndex. Same assembly role as the linear cartridge — lives here for
-  // now so the slice is self-contained and testable; a candidate to lift into
-  // the shared engine later (§2.4), once it exists.
-  function buildItem(difficulty, options) {
-    options = options || {};
-    var rng = options.rng || Math.random;
-    var problem = generate(difficulty, options);
-    var dists = distractors(problem, { rng: rng });
-
-    var pool = [{ value: problem.answer, kind: "correct", pattern: null, correct: true }];
-    for (var i = 0; i < dists.length; i++) {
-      pool.push({ value: dists[i].value, kind: dists[i].kind, pattern: dists[i].pattern, correct: false });
+  // --- explain(problem) -> one-line method (practice-mode feedback) ---------
+  // The cartridge owns the math; the engine stays math-free. Assembly (shuffle /
+  // 5-option pooling / correctIndex) now lives in the shared engine, lifted out
+  // of every cartridge per §2.4/§6.5.
+  function explain(problem) {
+    if (problem.shape === "rectangle") {
+      return "Rectangle area = length × width = " + problem.L + " × " + problem.W +
+        " = " + problem.answer + ".  (Using the perimeter 2(L+W) is the classic slip.)";
     }
-
-    // Fisher-Yates shuffle so the correct slot (A-E) is uniformly random.
-    for (var j = pool.length - 1; j > 0; j--) {
-      var rr = Math.floor(rng() * (j + 1));
-      var tmp = pool[j]; pool[j] = pool[rr]; pool[rr] = tmp;
-    }
-
-    var optionValues = pool.map(function (p) { return p.value; });
-    var correctIndex = -1;
-    for (var m = 0; m < pool.length; m++) if (pool[m].correct) correctIndex = m;
-
-    return {
-      problem: problem,
-      shape: problem.shape,
-      prompt: problem.prompt,
-      answer: problem.answer,
-      options: optionValues,
-      correctIndex: correctIndex,
-      optionMeta: pool,
-    };
+    return "Circle area = πr², with π = 22/7 and r = " + problem.r + ":  " +
+      "(22/7) × " + problem.r + "² = " + problem.answer + ".  (Circumference 2πr is the trap.)";
   }
 
   var cartridge = {
@@ -244,7 +220,7 @@
     PI_DEN: PI_DEN,
     generate: generate,
     distractors: distractors,
-    buildItem: buildItem,
+    explain: explain,
   };
 
   if (typeof module !== "undefined" && module.exports) {

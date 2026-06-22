@@ -180,41 +180,16 @@
     return picks;
   }
 
-  // --- buildItem(difficulty) -> full 5-option item --------------------------
-  // Assembles correct + 4 distractors, randomizes position (§4.1.5), and records
-  // correctIndex. This is the assembly step the shared engine will invoke once
-  // it exists; it lives here for now so the slice is self-contained and testable
-  // (a candidate to lift into the engine later — §2.4 — but no engine yet).
-  function buildItem(difficulty, options) {
-    options = options || {};
-    var rng = options.rng || Math.random;
-    var problem = generate(difficulty, options);
-    var dists = distractors(problem, { rng: rng });
-
-    var pool = [{ value: problem.answer, kind: "correct", pattern: null, correct: true }];
-    for (var i = 0; i < dists.length; i++) {
-      pool.push({ value: dists[i].value, kind: dists[i].kind, pattern: dists[i].pattern, correct: false });
-    }
-
-    // Fisher-Yates shuffle so the correct slot (A-E) is uniformly random.
-    for (var j = pool.length - 1; j > 0; j--) {
-      var r = Math.floor(rng() * (j + 1));
-      var tmp = pool[j]; pool[j] = pool[r]; pool[r] = tmp;
-    }
-
-    var optionValues = pool.map(function (p) { return p.value; });
-    var correctIndex = -1;
-    for (var m = 0; m < pool.length; m++) if (pool[m].correct) correctIndex = m;
-
-    return {
-      problem: problem,
-      equation: problem.equation,
-      prompt: problem.prompt,
-      answer: problem.answer,
-      options: optionValues,
-      correctIndex: correctIndex,
-      optionMeta: pool,          // per-option {value, kind, pattern, correct} for review/tests
-    };
+  // --- explain(problem) -> one-line method (practice-mode feedback) ---------
+  // The cartridge owns the math, so it owns the explanation; the shared engine
+  // stays math-free. About the ITEM, not the person — mirrors Table Reading
+  // practice. NOTE: option assembly (shuffle / 5-option pooling / correctIndex)
+  // now lives in the shared engine (engine.js), lifted out of every cartridge
+  // per §2.4/§6.5 now that the engine exists.
+  function explain(problem) {
+    return "Isolate x — move the constant, then divide by the coefficient:  " +
+      "x = (" + fmt(problem.c) + " − (" + fmt(problem.b) + ")) ÷ " + fmt(problem.a) +
+      " = " + fmt(problem.c - problem.b) + " ÷ " + fmt(problem.a) + " = " + fmt(problem.answer) + ".";
   }
 
   var cartridge = {
@@ -223,7 +198,7 @@
     RANGES: RANGES,
     generate: generate,
     distractors: distractors,
-    buildItem: buildItem,
+    explain: explain,
   };
 
   if (typeof module !== "undefined" && module.exports) {

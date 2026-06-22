@@ -25,12 +25,14 @@
   <script src="src/mathKnowledge/cleanAnswer.js"></script>
   <script src="src/mathKnowledge/linearEquation.js"></script>
   <script src="src/mathKnowledge/area.js"></script>
+  <script src="src/mathKnowledge/exponents.js"></script>
   <script>
     (function () {
       var MK = window.MathKnowledge;
       var clean = MK.cleanAnswer;
       var linear = MK.linearEquation;
       var area = MK.area;
+      var exponents = MK.exponents;
 
       var results = document.getElementById("results");
       var passed = 0, failed = 0;
@@ -372,6 +374,115 @@
       });
       note("FLAG F-4 (§4.2/§7): circle π convention = 22/7 with radius = 7k, chosen so every " +
         "option is an exact clean integer; realism still pending cadet-tester validation (F-2).");
+
+      // ================================================================
+      //  EXPONENT CARTRIDGE — same assertion groups
+      //  The clean-integer trap: negative exponents are excluded entirely
+      //  (they give fractions), zero exponents allowed (a^0 = 1), and every
+      //  item evaluates to an integer power a^E within a difficulty cap.
+      // ================================================================
+      var EXP_LEVELS = ["easy", "medium", "hard"];
+      var EXP_SUBTYPES = ["product", "power", "zero"];
+
+      // --- clean answers (§3): every correct value is a positive clean int --
+      heading("EXPONENTS — clean answers, every item (§3)");
+      var eRng = mulberry32(70809010);
+      var ECN = 9000, eCleanOk = 0, eCleanFail = null;
+      for (var ei = 0; ei < ECN; ei++) {
+        var ep = exponents.generate(EXP_LEVELS[ei % 3], { rng: eRng });
+        if (clean.isCleanInteger(ep.answer) && ep.answer >= 1) eCleanOk++;
+        else if (!eCleanFail) eCleanFail = ep.subtype + " answer=" + ep.answer;
+      }
+      assert(eCleanOk + "/" + ECN + " items: correct value is a positive clean integer" +
+        (eCleanFail ? " — first failure: " + eCleanFail : ""), eCleanOk === ECN);
+
+      // --- all five options clean (§4.1.7) --------------------------------
+      heading("EXPONENTS — all five options clean, every item (§4.1.7)");
+      var eRng2 = mulberry32(13243546);
+      var EAN = 9000, eAllOk = 0, eAllFail = null;
+      for (var ej = 0; ej < EAN; ej++) {
+        var eit = exponents.buildItem(EXP_LEVELS[ej % 3], { rng: eRng2 });
+        var uglyE = eit.options.filter(function (v) { return !clean.isCleanInteger(v); });
+        if (uglyE.length === 0) eAllOk++;
+        else if (!eAllFail) eAllFail = eit.subtype + ": ugly " + uglyE.join(",") + " [" + eit.options.join(",") + "]";
+      }
+      assert(eAllOk + "/" + EAN + " items: all 5 options are clean integers (§4.1.7)" +
+        (eAllFail ? " — first failure: " + eAllFail : ""), eAllOk === EAN);
+
+      // --- 4 distinct distractors + >=2 real patterns (§4.1.1/§4.1.6) ------
+      // All three sub-types forced so each is shown to clear the floor of 2.
+      heading("EXPONENTS — 4 distinct distractors, >=2 real patterns (§4.1.1, §4.1.6)");
+      var eRng3 = mulberry32(86429753);
+      var EDN = 9000, eDistOk = 0, eDistFail = null;
+      var subMin = { product: 99, power: 99, zero: 99 };
+      for (var ek = 0; ek < EDN; ek++) {
+        var sub = EXP_SUBTYPES[ek % 3];
+        var edit = exponents.buildItem(EXP_LEVELS[ek % 3], { rng: eRng3, subtype: sub });
+        var probs = [];
+        if (edit.options.length !== 5) probs.push("not 5 options");
+        if (new Set(edit.options).size !== 5) probs.push("options not distinct");
+        if (edit.options[edit.correctIndex] !== edit.answer) probs.push("correctIndex wrong");
+        var ds = edit.optionMeta.filter(function (o) { return !o.correct; });
+        if (ds.length !== 4) probs.push("not exactly 4 distractors");
+        var errCount = ds.filter(function (o) { return o.kind === "error"; }).length;
+        if (errCount < 2) probs.push("only " + errCount + " real patterns");
+        if (errCount < subMin[sub]) subMin[sub] = errCount;
+        if (probs.length === 0) eDistOk++;
+        else if (!eDistFail) eDistFail = sub + ": " + probs.join("; ") + " [" + edit.prompt + " -> " + edit.options.join(",") + "]";
+      }
+      assert(eDistOk + "/" + EDN + " items: 5 distinct options, exactly 4 distractors, >=2 real patterns" +
+        (eDistFail ? " — first failure: " + eDistFail : ""), eDistOk === EDN);
+      assert("every sub-type clears the floor (min real patterns — product:" + subMin.product +
+        " power:" + subMin.power + " zero:" + subMin.zero + ", floor 2)",
+        subMin.product >= 2 && subMin.power >= 2 && subMin.zero >= 2);
+
+      // --- spread: no clustering tell (§4.1.3), per sub-type --------------
+      heading("EXPONENTS — no clustering outlier (§4.1.3)");
+      EXP_SUBTYPES.forEach(function (sub, si) {
+        var sRng = mulberry32(40506070 + si);
+        var ESN = 4000, eSpreadOk = 0, eWorst = 0, eSpreadFail = null;
+        for (var sj = 0; sj < ESN; sj++) {
+          var sit = exponents.buildItem(EXP_LEVELS[sj % 3], { rng: sRng, subtype: sub });
+          var sorted = sit.options.slice().sort(function (x, y) { return x - y; });
+          var range = sorted[4] - sorted[0];
+          var maxGap = 0;
+          for (var g = 1; g < 5; g++) { var gap = sorted[g] - sorted[g - 1]; if (gap > maxGap) maxGap = gap; }
+          var ratio = maxGap / range;
+          if (ratio > eWorst) eWorst = ratio;
+          if (ratio <= 0.6) eSpreadOk++;
+          else if (!eSpreadFail) eSpreadFail = sub + ": gap/range=" + ratio.toFixed(2) + " [" + sorted.join(",") + "]";
+        }
+        assert(sub + ": " + eSpreadOk + "/" + ESN + " items have largest gap <= 60% of range" +
+          (eSpreadFail ? " — first failure: " + eSpreadFail : ""), eSpreadOk === ESN);
+        note(sub + " worst gap/range ratio: " + eWorst.toFixed(3) + " (threshold 0.60)");
+      });
+
+      // --- position: correct slot roughly uniform across A-E (§4.1.5) -----
+      heading("EXPONENTS — correct slot roughly uniform across A–E (§4.1.5)");
+      var eRngP = mulberry32(35797531);
+      var EPN = 9000, eBuckets = [0, 0, 0, 0, 0];
+      for (var epI = 0; epI < EPN; epI++) {
+        var epit = exponents.buildItem(EXP_LEVELS[epI % 3], { rng: eRngP });
+        eBuckets[epit.correctIndex]++;
+      }
+      var eExpected = EPN / 5;
+      var ePosOk = eBuckets.every(function (n) { return n >= eExpected * 0.85 && n <= eExpected * 1.15; });
+      assert("correct-slot counts within ±15% of " + eExpected + ": [" + eBuckets.join(", ") + "]", ePosOk);
+
+      // --- concrete exponent samples, printed for eyeballing --------------
+      heading("EXPONENTS — concrete sample items (eyeball check)");
+      var eRngEx = mulberry32(59);
+      EXP_SUBTYPES.forEach(function (sub) {
+        ["easy", "hard"].forEach(function (level) {
+          var ex3 = exponents.buildItem(level, { rng: eRngEx, subtype: sub });
+          var tags3 = ex3.optionMeta.map(function (o) {
+            return o.value + (o.correct ? "✓" : "[" + (o.kind === "error" ? o.pattern : "filler") + "]");
+          });
+          note(sub + "/" + level + ":  " + ex3.prompt + " = " + ex3.answer + "   options → " + tags3.join("  "));
+        });
+      });
+      note("Negative exponents are excluded by design: a^(-n) = 1/a^n is a fraction, which would " +
+        "violate §4.1.7. Zero exponents allowed (a^0 = 1, integer). Range mapping flagged F-1.");
 
       var summary = document.getElementById("summary");
       summary.className = failed === 0 ? "ok" : "bad";

@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>GatorVector — Math Knowledge tests</title>
+  <style>
+    body { font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; margin: 2rem; }
+    h1 { font-size: 1.1rem; }
+    h2 { font-size: 0.95rem; margin: 1rem 0 0.25rem; }
+    .case { padding: 2px 0; }
+    .pass { color: #137333; }
+    .fail { color: #c5221f; font-weight: bold; }
+    .note { color: #5f6368; }
+    #summary { margin-top: 1rem; font-weight: bold; }
+    #summary.ok { color: #137333; }
+    #summary.bad { color: #c5221f; }
+  </style>
+</head>
+<body>
+  <h1>Math Knowledge — tests (Phase 2, slice 1: clean-answer + linear cartridge)</h1>
+  <div id="results"></div>
+  <div id="summary"></div>
+
+  <!-- Zero tooling: load the source files directly, then run assertions below. -->
+  <script src="src/mathKnowledge/cleanAnswer.js"></script>
+  <script src="src/mathKnowledge/linearEquation.js"></script>
+  <script>
+    (function () {
+      var MK = window.MathKnowledge;
+      var clean = MK.cleanAnswer;
+      var linear = MK.linearEquation;
+
+      var results = document.getElementById("results");
+      var passed = 0, failed = 0;
+
+      function row(ok, text) {
+        passed += ok ? 1 : 0; failed += ok ? 0 : 1;
+        var el = document.createElement("div");
+        el.className = "case " + (ok ? "pass" : "fail");
+        el.textContent = (ok ? "PASS" : "FAIL") + " — " + text;
+        results.appendChild(el);
+      }
+      function check(description, actual, expected) {
+        row(actual === expected,
+          description + " (got " + actual + ", expected " + expected + ")");
+      }
+      function assert(description, ok) { row(!!ok, description); }
+      function heading(text) {
+        var el = document.createElement("h2");
+        el.textContent = text;
+        results.appendChild(el);
+      }
+      function note(text) {
+        var el = document.createElement("div");
+        el.className = "case note";
+        el.textContent = text;
+        results.appendChild(el);
+      }
+
+      // Seeded PRNG (mulberry32) so randomized tests are deterministic — no
+      // flaky failures on the position-uniformity / spread sweeps.
+      function mulberry32(seed) {
+        return function () {
+          seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+          var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      var LEVELS = ["easy", "medium", "hard"];
+
+      // --- clean-answer machinery (§3, highest risk) ----------------------
+      heading("clean-answer machinery (§3)");
+      check("isCleanInteger(7) true", clean.isCleanInteger(7), true);
+      check("isCleanInteger(-3) true", clean.isCleanInteger(-3), true);
+      check("isCleanInteger(2.5) false", clean.isCleanInteger(2.5), false);
+      check("isCleanInteger(NaN) false", clean.isCleanInteger(NaN), false);
+      check("solveLinear(3,7,22) === 5", clean.solveLinear(3, 7, 22), 5);
+      check("isExactlySolvable(3,7,22) true", clean.isExactlySolvable(3, 7, 22), true);
+      check("isExactlySolvable(3,7,23) false", clean.isExactlySolvable(3, 7, 23), false);
+
+      // Across many generated items per difficulty, EVERY correct answer must
+      // be a clean integer, the construction must be exactly solvable, and the
+      // canonical solve must recover x. A single ugly answer is the §3 defect.
+      var rng = mulberry32(20260622);
+      var CLEAN_N = 4000, cleanOk = 0, cleanFail = null;
+      for (var i = 0; i < CLEAN_N; i++) {
+        var lvl = LEVELS[i % 3];
+        var p = linear.generate(lvl, { rng: rng });
+        var problems = [];
+        if (!clean.isCleanInteger(p.answer)) problems.push("answer not clean int: " + p.answer);
+        if (p.a * p.x + p.b !== p.c) problems.push("c != a*x+b");
+        if (!clean.isExactlySolvable(p.a, p.b, p.c)) problems.push("not exactly solvable");
+        if (clean.solveLinear(p.a, p.b, p.c) !== p.answer) problems.push("solve != answer");
+        if (Math.abs(p.a) < 2) problems.push("|a| < 2");
+        if (p.x === 0 || p.b === 0) problems.push("x or b is zero");
+        if (problems.length === 0) cleanOk++;
+        else if (!cleanFail) cleanFail = "lvl " + lvl + ": " + problems.join("; ") +
+          "  [a=" + p.a + " x=" + p.x + " b=" + p.b + " c=" + p.c + "]";
+      }
+      assert(cleanOk + "/" + CLEAN_N + " items: correct answer is a clean integer & exactly solvable" +
+        (cleanFail ? " — first failure: " + cleanFail : ""), cleanOk === CLEAN_N);
+
+      // --- distractors: count, uniqueness, real-pattern floor (§4.1) ------
+      heading("distractors — count, uniqueness, >=2 real patterns (§4.1)");
+      var rngD = mulberry32(424242);
+      var DN = 4000, distOk = 0, distFail = null;
+      for (var d = 0; d < DN; d++) {
+        var lv = LEVELS[d % 3];
+        var item = linear.buildItem(lv, { rng: rngD });
+        var probs = [];
+
+        if (item.options.length !== 5) probs.push("not 5 options");
+        if (new Set(item.options).size !== 5) probs.push("options not all distinct");
+        if (item.options[item.correctIndex] !== item.answer) probs.push("correctIndex wrong");
+
+        var ds = item.optionMeta.filter(function (o) { return !o.correct; });
+        if (ds.length !== 4) probs.push("not exactly 4 distractors");
+        var errCount = ds.filter(function (o) { return o.kind === "error"; }).length;
+        if (errCount < 2) probs.push("only " + errCount + " real error patterns");
+        // every distractor distinct from the answer
+        for (var z = 0; z < ds.length; z++) {
+          if (ds[z].value === item.answer) { probs.push("distractor equals answer"); break; }
+        }
+
+        if (probs.length === 0) distOk++;
+        else if (!distFail) distFail = "lvl " + lv + ": " + probs.join("; ") +
+          "  [" + item.equation + " -> " + item.options.join(",") + "]";
+      }
+      assert(distOk + "/" + DN + " items: 5 distinct options, exactly 4 distractors, >=2 real patterns" +
+        (distFail ? " — first failure: " + distFail : ""), distOk === DN);
+
+      // --- spread: no clustering tell (§4.1.3) ----------------------------
+      // Fail an item if any single gap between sorted options exceeds 60% of the
+      // total range — that is the signature of "tight cluster + one far option",
+      // which would make the correct answer guessable by structure.
+      heading("spread — no option is a clustering outlier (§4.1.3)");
+      var rngS = mulberry32(99887766);
+      var SN = 4000, spreadOk = 0, worstRatio = 0, spreadFail = null;
+      for (var s = 0; s < SN; s++) {
+        var lvS = LEVELS[s % 3];
+        var it = linear.buildItem(lvS, { rng: rngS });
+        var sorted = it.options.slice().sort(function (x, y) { return x - y; });
+        var range = sorted[4] - sorted[0];
+        var maxGap = 0;
+        for (var g = 1; g < sorted.length; g++) {
+          var gap = sorted[g] - sorted[g - 1];
+          if (gap > maxGap) maxGap = gap;
+        }
+        var ratio = maxGap / range;
+        if (ratio > worstRatio) worstRatio = ratio;
+        if (ratio <= 0.6) spreadOk++;
+        else if (!spreadFail) spreadFail = "lvl " + lvS + ": gap/range=" + ratio.toFixed(2) +
+          "  [" + it.equation + " -> " + sorted.join(",") + "]";
+      }
+      assert(spreadOk + "/" + SN + " items: largest gap <= 60% of range" +
+        (spreadFail ? " — first failure: " + spreadFail : ""), spreadOk === SN);
+      note("worst observed gap/range ratio: " + worstRatio.toFixed(3) + " (threshold 0.60)");
+
+      // --- position: correct answer roughly uniform across A-E (§4.1.5) ---
+      heading("position — correct slot roughly uniform across A–E (§4.1.5)");
+      var rngP = mulberry32(13572468);
+      var PN = 6000;
+      var buckets = [0, 0, 0, 0, 0];
+      for (var pI = 0; pI < PN; pI++) {
+        var pit = linear.buildItem(LEVELS[pI % 3], { rng: rngP });
+        buckets[pit.correctIndex]++;
+      }
+      var expected = PN / 5;            // 1200 per slot
+      var lowB = expected * 0.85, highB = expected * 1.15;  // +/-15% tolerance
+      var posOk = buckets.every(function (n) { return n >= lowB && n <= highB; });
+      assert("correct-slot counts within ±15% of " + expected + ": [" + buckets.join(", ") + "]", posOk);
+      // Also: correct answer is not always the numeric extreme — it lands
+      // mid-pack a healthy share of the time (§4.1.3 "mid-pack as often as edge").
+      var rngM = mulberry32(8642097);
+      var MN = 4000, midPack = 0;
+      for (var mi = 0; mi < MN; mi++) {
+        var mit = linear.buildItem(LEVELS[mi % 3], { rng: rngM });
+        var srt = mit.options.slice().sort(function (x, y) { return x - y; });
+        var rank = srt.indexOf(mit.answer);        // 0..4 by value
+        if (rank !== 0 && rank !== 4) midPack++;    // not the min or max value
+      }
+      var midFrac = midPack / MN;
+      assert("correct answer is a value-extreme < 70% of the time (mid-pack frac=" +
+        midFrac.toFixed(2) + ")", midFrac >= 0.30);
+
+      // --- determinism (§5.2) ---------------------------------------------
+      heading("determinism (§5.2)");
+      var a1 = linear.buildItem("medium", { rng: mulberry32(555) });
+      var a2 = linear.buildItem("medium", { rng: mulberry32(555) });
+      assert("same seed -> identical equation", a1.equation === a2.equation);
+      assert("same seed -> identical options & correctIndex",
+        a1.options.join(",") === a2.options.join(",") && a1.correctIndex === a2.correctIndex);
+      // A problem's correct answer is stable: solving its equation reproduces it.
+      var rngDet = mulberry32(31415);
+      var detOk = 0, DET_N = 2000;
+      for (var di = 0; di < DET_N; di++) {
+        var dp = linear.generate(LEVELS[di % 3], { rng: rngDet });
+        if (clean.solveLinear(dp.a, dp.b, dp.c) === dp.answer) detOk++;
+      }
+      check("solving each generated equation reproduces its answer", detOk, DET_N);
+
+      // --- difficulty knob respects ranges (§5.1, F-1 default) ------------
+      heading("difficulty knob — generate(difficulty) controls ranges (§5.1)");
+      var rngK = mulberry32(246810);
+      var KN = 2000;
+      function rangeOk(level) {
+        var R = linear.RANGES[level];
+        for (var ki = 0; ki < KN; ki++) {
+          var kp = linear.generate(level, { rng: rngK });
+          var am = Math.abs(kp.a), xm = Math.abs(kp.x), bm = Math.abs(kp.b);
+          if (am < R.a[0] || am > R.a[1]) return "a magnitude " + kp.a;
+          if (xm < R.x[0] || xm > R.x[1]) return "x magnitude " + kp.x;
+          if (bm < R.b[0] || bm > R.b[1]) return "b magnitude " + kp.b;
+          if (!R.aNeg && kp.a < 0) return "negative a at " + level;
+          if (!R.xNeg && kp.x < 0) return "negative x at " + level;
+          if (!R.bNeg && kp.b < 0) return "negative b at " + level;
+        }
+        return null;
+      }
+      LEVELS.forEach(function (level) {
+        var bad = rangeOk(level);
+        assert("'" + level + "': all of a,x,b within declared ranges/signs" +
+          (bad ? " — violation: " + bad : ""), bad === null);
+      });
+      check("unknown difficulty falls back to easy",
+        linear.generate("bogus", { rng: mulberry32(1) }).difficulty, "easy");
+      note("FLAG F-1 (§5.1/§7): difficulty→range mapping is an UNVALIDATED default, " +
+        "pending cadet-tester feedback — the knob is real, the numbers are provisional.");
+
+      // --- concrete spot-check, printed for human eyeballing --------------
+      heading("concrete sample items (eyeball check — F-2 realism pending)");
+      var rngEx = mulberry32(7);
+      ["easy", "medium", "hard"].forEach(function (level) {
+        var ex = linear.buildItem(level, { rng: rngEx });
+        var tags = ex.optionMeta.map(function (o) {
+          return o.value + (o.correct ? "✓" : "[" + (o.kind === "error" ? o.pattern : "filler") + "]");
+        });
+        note(level + ":  " + ex.equation + "   options → " + tags.join("  "));
+      });
+
+      var summary = document.getElementById("summary");
+      summary.className = failed === 0 ? "ok" : "bad";
+      summary.textContent =
+        failed === 0
+          ? "ALL PASS — " + passed + "/" + (passed + failed)
+          : failed + " FAILED — " + passed + "/" + (passed + failed) + " passed";
+    })();
+  </script>
+</body>
+</html>

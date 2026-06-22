@@ -130,6 +130,7 @@ Browser-based harness covering all pure logic, in the spirit of Phase 1's 21 pas
 - **F-2.** Distractor-set realism per cartridge — "do these look like real options?" (§4.3).
 - **F-3.** Content emphasis: does real Form T MK lean more algebra or geometry? Affects which cartridges to prioritize *after* this slice. (Confirm with AFOQT-taker testers; dossier §4.4 lists the domain but not the operational mix.)
 - **F-4.** π convention on circle items — confirm whether real items present "in terms of π" or with an approximation (§4.2).
+- **F-5.** Circle-area item **framing/fairness** (distinct from F-4's convention question). As currently built, a circle item presents π = 22/7 and asks for the **evaluated integer area** (e.g. r = 7 → 154). Under no-calculator conditions this may feel **unfair or unrealistic** — squaring the radius and multiplying by 22/7 by hand is heavier than the other cartridges. The integer-clean construction is sound; only the *presentation* is open. Needs cadet-tester input on what real circle items actually look like. Options on the table: (a) **state the area formula on-screen** (πr²) so the item tests recall-of-method, not heavy arithmetic; (b) switch circle answers to **"in terms of π"** (e.g. 49π) so no multiplication by 22/7 is required — note this changes the "clean integer" answer model and would need its own clean-form rules; (c) **drop circles for this slice (rectangles-only)** and revisit once testers confirm the real format. Until resolved, keep the current 22/7 build but do not treat its framing as validated.
 
 ---
 

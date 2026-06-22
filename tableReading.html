@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GatorVector — Math Knowledge</title>
+  <title>GatorVector — Table Reading</title>
   <style>
     :root {
       --ink: #1a1a1a;
@@ -12,6 +12,7 @@
       --accent: #0b6e4f;
       --bad: #c5221f;
       --bg: #fafafa;
+      --cell: 2.0ch;
     }
     * { box-sizing: border-box; }
     body {
@@ -20,7 +21,7 @@
       color: var(--ink);
       background: var(--bg);
     }
-    .wrap { max-width: 720px; margin: 0 auto; padding: 1.25rem; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 1.25rem; }
     h1 { font-size: 1.25rem; margin: 0 0 0.25rem; }
     .tagline { color: var(--muted); margin: 0 0 1.25rem; font-size: 0.9rem; }
     .homelink {
@@ -62,9 +63,6 @@
       display: inline-block;
     }
     .best strong { color: var(--accent); }
-    .modepick { display: flex; gap: 0.75rem; margin: 0.75rem 0; flex-wrap: wrap; }
-    button.primary.alt { background: #fff; color: var(--accent); }
-    .modehint { color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
 
     /* --- DRILL header --- */
     .drillbar {
@@ -82,109 +80,145 @@
     }
     .timer.low { color: var(--bad); }
     .progress { color: var(--muted); font-size: 0.95rem; }
-    .tally { font-weight: 700; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
 
-    /* --- QUESTION + OPTIONS --- */
-    .qcard {
-      border: 1px solid var(--line);
-      border-radius: 10px;
+    .question {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 0.25rem 0 0.5rem;
+    }
+    .question .coord {
+      font-variant-numeric: tabular-nums;
       background: #fff;
-      padding: 1.25rem 1.25rem 1.4rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.1rem 0.6rem;
     }
-    .prompt {
-      font-size: 1.7rem;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-      letter-spacing: 0.01em;
-      margin: 0 0 1rem;
-      line-height: 1.3;
-    }
-    /* Vertical A–E list, test-style. */
-    .options { display: flex; flex-direction: column; gap: 0.5rem; }
+    .options { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0 1rem; }
     .options button {
-      display: flex;
-      align-items: baseline;
-      gap: 0.7rem;
-      text-align: left;
       font-variant-numeric: tabular-nums;
-      font-size: 1.1rem;
-      padding: 0.7rem 0.9rem;
-      width: 100%;
+      font-size: 1.15rem;
+      min-width: 4.5rem;
+      padding: 0.7rem 1rem;
     }
-    .options .optletter {
-      color: var(--accent);
-      font-weight: 700;
-      min-width: 1.4rem;
-    }
-    .options button:disabled { cursor: default; }
-    .options button.opt-correct {
-      border-color: var(--accent); background: #eef7f2; color: var(--accent); font-weight: 700;
-    }
-    .options button.opt-correct .optletter { color: var(--accent); }
-    .options button.opt-wrong {
-      border-color: var(--bad); background: #fdeeee; color: var(--bad);
-    }
-    .options button.opt-wrong .optletter { color: var(--bad); }
 
-    /* --- PRACTICE feedback --- */
+    /* --- GRID --- */
+    .gridscroll {
+      max-height: 60vh;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+    table.grid {
+      border-collapse: collapse;
+      /* Monospaced, fixed-advance digits so columns line up and a coordinate is
+         findable by counting — the real test gives no straightedge. */
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+      font-size: 13px;
+    }
+    table.grid th, table.grid td {
+      width: var(--cell);
+      min-width: var(--cell);
+      text-align: center;
+      padding: 2px 4px;
+      white-space: nowrap;
+    }
+    table.grid td { color: var(--ink); }
+    /* Axis labels: sticky so they stay visible while scrolling a big grid.
+       These mark the AXES only — no cell is highlighted or pointed at. */
+    table.grid thead th {
+      position: sticky; top: 0; z-index: 2;
+      background: #eef3f1; color: var(--accent); font-weight: 700;
+      border-bottom: 1px solid var(--line);
+    }
+    table.grid tbody th {
+      position: sticky; left: 0; z-index: 1;
+      background: #eef3f1; color: var(--accent); font-weight: 700;
+      border-right: 1px solid var(--line);
+    }
+    table.grid thead th.corner {
+      left: 0; z-index: 3; background: #e3eae7;
+    }
+    table.grid tbody tr:nth-child(even) td { background: #f7f7f7; }
+
+    /* --- RESULTS --- */
+    .score { font-size: 2rem; font-weight: 800; margin: 0.5rem 0 0.25rem; }
+    .score .of { color: var(--muted); font-weight: 600; font-size: 1.1rem; }
+    .meta { color: var(--muted); margin-bottom: 1rem; }
+    table.review { border-collapse: collapse; width: 100%; max-width: 560px; background: #fff; }
+    table.review th, table.review td {
+      border: 1px solid var(--line); padding: 0.4rem 0.6rem; text-align: left;
+      font-variant-numeric: tabular-nums; font-size: 0.95rem;
+    }
+    table.review th { background: #f0f0f0; }
+    table.review td.correct { color: var(--accent); font-weight: 600; }
+    table.review td.chosen { color: var(--bad); }
+    .allright { color: var(--accent); font-weight: 600; }
+
+    /* --- START mode picker --- */
+    .modepick { display: flex; gap: 0.75rem; margin: 0.75rem 0; flex-wrap: wrap; }
+    button.primary.alt { background: #fff; color: var(--accent); }
+    .modehint { color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
+
+    /* --- PRACTICE --- */
+    .tally {
+      font-weight: 700; font-size: 1.15rem;
+      font-variant-numeric: tabular-nums;
+    }
     .feedback {
       border: 1px solid var(--line); border-radius: 8px; background: #fff;
-      padding: 0.7rem 0.95rem; font-size: 1.05rem; max-width: 640px;
-      margin: 0.9rem 0 0;
+      padding: 0.6rem 0.9rem; font-size: 1.05rem; max-width: 640px;
+      margin: 0.25rem 0 0.75rem;
     }
     .feedback.right { border-color: var(--accent); background: #eef7f2; }
     .feedback.wrong { border-color: var(--bad); background: #fdeeee; }
     .feedback .verdict { font-weight: 700; }
     .feedback.right .verdict { color: var(--accent); }
     .feedback.wrong .verdict { color: var(--bad); }
-    .feedback .why { color: var(--muted); margin-top: 0.3rem; font-size: 0.92rem; line-height: 1.5; }
-
-    /* --- RESULTS --- */
-    .score { font-size: 2rem; font-weight: 800; margin: 0.5rem 0 0.25rem; }
-    .score .of { color: var(--muted); font-weight: 600; font-size: 1.1rem; }
-    .meta { color: var(--muted); margin-bottom: 1rem; }
-    table.review { border-collapse: collapse; width: 100%; background: #fff; }
-    table.review th, table.review td {
-      border: 1px solid var(--line); padding: 0.45rem 0.6rem; text-align: left;
-      font-variant-numeric: tabular-nums; font-size: 0.95rem; vertical-align: top;
+    .feedback .why { color: var(--muted); margin-top: 0.25rem; font-size: 0.9rem; }
+    .options button.opt-correct {
+      border-color: var(--accent); background: #eef7f2; color: var(--accent); font-weight: 700;
     }
-    table.review th { background: #f0f0f0; }
-    table.review td.correct { color: var(--accent); font-weight: 600; }
-    table.review td.chosen { color: var(--bad); }
-    table.review .method { color: var(--muted); font-size: 0.85rem; }
-    .allright { color: var(--accent); font-weight: 600; }
+    .options button.opt-wrong {
+      border-color: var(--bad); background: #fdeeee; color: var(--bad);
+    }
+    .options button:disabled { cursor: default; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <a class="homelink" href="index.html">← All drills</a>
-    <h1>Math Knowledge</h1>
-    <p class="tagline">AFOQT math-fluency drill — solve, no calculator, 5 choices. Unofficial study aid.</p>
+    <h1>Table Reading</h1>
+    <p class="tagline">AFOQT perceptual-speed drill — find the value at (X, Y) fast. Unofficial study aid.</p>
 
     <!-- ============ START ============ -->
     <section id="screen-start">
-      <p>Bare math: linear equations, area, and exponent simplification — mixed together.</p>
+      <p>Find the value at each (X, Y) coordinate in the grid.</p>
       <div id="best" class="best hidden"></div>
       <div class="modepick">
         <button id="btn-start" class="primary">Timed Drill</button>
         <button id="btn-practice" class="primary alt">Practice</button>
       </div>
       <p class="modehint">
-        <strong>Timed Drill:</strong> 25 items, 22:00 clock, no feedback — real MK test conditions.<br>
-        <strong>Practice:</strong> untimed, immediate feedback and the method after each answer; go as long as you like.
+        <strong>Timed Drill:</strong> 40 items, 7:00 clock, no feedback — real test conditions.<br>
+        <strong>Practice:</strong> untimed, immediate feedback after each answer; go as long as you like.
       </p>
     </section>
 
     <!-- ============ DRILL ============ -->
     <section id="screen-drill" class="hidden">
       <div class="drillbar">
-        <div class="timer" id="timer">22:00</div>
-        <div class="progress" id="progress">Item 1 of 25</div>
+        <div class="timer" id="timer">7:00</div>
+        <div class="progress" id="progress">Item 1 of 40</div>
         <button class="linklike" id="btn-end">End drill early</button>
       </div>
-      <div class="qcard">
-        <div class="prompt" id="prompt">—</div>
-        <div class="options" id="options"></div>
+      <div class="question">
+        Find <span class="coord" id="coord">X = 0, Y = 0</span>
+      </div>
+      <div class="options" id="options"></div>
+      <div class="gridscroll">
+        <table class="grid" id="grid"></table>
       </div>
     </section>
 
@@ -194,19 +228,22 @@
         <div class="tally" id="p-tally">0 correct of 0</div>
         <button class="linklike" id="btn-end-practice">End practice</button>
       </div>
-      <div class="qcard">
-        <div class="prompt" id="p-prompt">—</div>
-        <div class="options" id="p-options"></div>
-        <div class="feedback hidden" id="p-feedback"></div>
-        <div id="p-next-wrap" class="hidden" style="margin-top: 0.9rem;">
-          <button id="btn-next" class="primary">Next →</button>
-        </div>
+      <div class="question">
+        Find <span class="coord" id="p-coord">X = 0, Y = 0</span>
+      </div>
+      <div class="options" id="p-options"></div>
+      <div class="feedback hidden" id="p-feedback"></div>
+      <div id="p-next-wrap" class="hidden" style="margin: 0 0 0.75rem;">
+        <button id="btn-next" class="primary">Next →</button>
+      </div>
+      <div class="gridscroll">
+        <table class="grid" id="p-grid"></table>
       </div>
     </section>
 
     <!-- ============ RESULTS ============ -->
     <section id="screen-results" class="hidden">
-      <div class="score"><span id="result-correct">0</span> <span class="of">of <span id="result-total">25</span> correct</span></div>
+      <div class="score"><span id="result-correct">0</span> <span class="of">of <span id="result-total">40</span> correct</span></div>
       <div class="meta" id="result-meta"></div>
       <div id="review"></div>
       <div style="margin-top:1.25rem;">
@@ -215,30 +252,26 @@
     </section>
   </div>
 
-  <!-- Engine + cartridges (already built + tested) — math.html only orchestrates. -->
-  <script src="src/mathKnowledge/cleanAnswer.js"></script>
-  <script src="src/mathKnowledge/linearEquation.js"></script>
-  <script src="src/mathKnowledge/area.js"></script>
-  <script src="src/mathKnowledge/exponents.js"></script>
-  <script src="src/mathKnowledge/engine.js"></script>
-  <script src="src/mathKnowledge/registerCartridges.js"></script>
+  <!-- Engine (already built + tested) — index.html only orchestrates it. -->
+  <script src="src/tableReading/labelIndex.js"></script>
+  <script src="src/tableReading/gridGenerator.js"></script>
+  <script src="src/tableReading/itemGenerator.js"></script>
+  <script src="src/tableReading/drill.js"></script>
+  <script src="src/tableReading/scoring.js"></script>
   <script>
     (function () {
-      var engine = window.MathKnowledge.engine;
-      var TIME_LIMIT = 22 * 60;       // 22:00 — real MK subtest (dossier §4.4)
-      var ITEM_COUNT = 25;            // real MK subtest length
-      var DIFFICULTY = "medium";      // F-1: level→range mapping is a flagged default
-      var BEST_KEY = "gatorvector.mathKnowledge.best.v1";
-      var LETTERS = ["A", "B", "C", "D", "E"];
+      var TR = window.TableReading;
+      var TIME_LIMIT = 420;          // spec timeLimitSeconds (7:00)
+      var BEST_KEY = "gatorvector.tableReading.best.v1";
 
-      // --- tiny DOM helpers (same shape as Table Reading) ---
+      // --- tiny DOM helpers ---
       var $ = function (id) { return document.getElementById(id); };
       function show(name) {
         ["start", "drill", "practice", "results"].forEach(function (s) {
           $("screen-" + s).classList.toggle("hidden", s !== name);
         });
       }
-      // Render values with a real minus sign so negatives read cleanly.
+      // Render numbers with a real minus sign so negatives read cleanly.
       function fmt(n) { return String(n).replace("-", "−"); }
       function clock(sec) {
         var m = Math.floor(sec / 60);
@@ -247,7 +280,7 @@
       }
 
       // --- session state ---
-      var drill, current, answers, timeLeft, timerId;
+      var grid, drill, current, answers, timeLeft, timerId;
 
       // --- START ---
       function renderBest() {
@@ -262,25 +295,36 @@
           "</strong> &nbsp;<span style='color:var(--muted)'>(" + best.date + ")</span>";
       }
 
-      // Build a row of A–E option buttons into `container`; onPick(optionIndex).
-      function renderOptions(container, options, onPick) {
-        container.innerHTML = "";
-        options.forEach(function (value, optionIndex) {
-          var b = document.createElement("button");
-          b.innerHTML = "<span class='optletter'>" + LETTERS[optionIndex] + "</span>" +
-            "<span class='optval'>" + fmt(value) + "</span>";
-          b.addEventListener("click", function () { onPick(optionIndex); });
-          container.appendChild(b);
-        });
+      // Build the 35x35 grid table ONCE per session into table#tableId. No
+      // target cell is marked — finding it unaided is the skill.
+      function renderGrid(grid, tableId) {
+        var axis = grid.axisRange;
+        var html = ["<thead><tr><th class='corner'>Y\\X</th>"];
+        for (var x = -axis; x <= axis; x++) html.push("<th>" + fmt(x) + "</th>");
+        html.push("</tr></thead><tbody>");
+        for (var y = -axis; y <= axis; y++) {
+          var yIndex = TR.labelToIndex(y, axis);
+          html.push("<tr><th>" + fmt(y) + "</th>");
+          for (var x2 = -axis; x2 <= axis; x2++) {
+            var xIndex = TR.labelToIndex(x2, axis);
+            html.push("<td>" + grid.cells[yIndex][xIndex] + "</td>");
+          }
+          html.push("</tr>");
+        }
+        html.push("</tbody>");
+        $(tableId).innerHTML = html.join("");
       }
 
-      // --- DRILL (timed, no per-item feedback — real test conditions) ---
+      // --- DRILL ---
       function startDrill() {
-        drill = engine.generateDrill({ difficulty: DIFFICULTY, itemCount: ITEM_COUNT });
+        // ONE grid for the whole session; many items drawn against it.
+        grid = TR.generateGrid();
+        drill = TR.generateDrill(grid);
         answers = new Array(drill.items.length);
         current = 0;
         timeLeft = TIME_LIMIT;
 
+        renderGrid(grid, "grid");
         renderQuestion();
         updateTimer();
         timerId = setInterval(tick, 1000);
@@ -302,9 +346,17 @@
       function renderQuestion() {
         var item = drill.items[current];
         $("progress").textContent = "Item " + (current + 1) + " of " + drill.items.length;
-        $("prompt").textContent = item.prompt;
-        // TEST CONDITIONS: record the answer and advance — NO right/wrong shown.
-        renderOptions($("options"), item.options, answer);
+        $("coord").textContent = "X = " + fmt(item.x) + ", Y = " + fmt(item.y);
+
+        var box = $("options");
+        box.innerHTML = "";
+        item.options.forEach(function (value, optionIndex) {
+          var b = document.createElement("button");
+          b.textContent = value;
+          // TEST CONDITIONS: record the answer and advance — NO right/wrong shown.
+          b.addEventListener("click", function () { answer(optionIndex); });
+          box.appendChild(b);
+        });
       }
 
       function answer(optionIndex) {
@@ -320,7 +372,7 @@
         timerId = null;
         var timeUsed = TIME_LIMIT - timeLeft;
         var total = drill.items.length;
-        var score = engine.scoreDrill(drill.items, answers);
+        var score = TR.scoreDrill(drill.items, answers);
 
         $("result-correct").textContent = score;
         $("result-total").textContent = total;
@@ -329,7 +381,7 @@
           "Time used: " + clock(timeUsed) + " of " + clock(TIME_LIMIT) +
           " · Answered " + answered + " of " + total;
 
-        renderReview(engine.reviewMissed(drill.items, answers));
+        renderReview(TR.reviewMissed(drill.items, answers));
         saveBest(score, total, timeUsed);
         show("results");
       }
@@ -342,14 +394,13 @@
         }
         var html = ["<p>Missed items (" + missed.length + "):</p>",
           "<table class='review'><thead><tr>",
-          "<th>#</th><th>Problem</th><th>You chose</th><th>Correct</th>",
+          "<th>#</th><th>Coordinate</th><th>You chose</th><th>Correct</th>",
           "</tr></thead><tbody>"];
         missed.forEach(function (m) {
           html.push("<tr><td>" + m.number + "</td>" +
-            "<td>" + m.prompt +
-              (m.explain ? "<div class='method'>" + m.explain + "</div>" : "") + "</td>" +
-            "<td class='chosen'>" + (m.chosen === null ? "—" : fmt(m.chosen)) + "</td>" +
-            "<td class='correct'>" + fmt(m.correct) + "</td></tr>");
+            "<td>X = " + fmt(m.x) + ", Y = " + fmt(m.y) + "</td>" +
+            "<td class='chosen'>" + (m.chosen === null ? "—" : m.chosen) + "</td>" +
+            "<td class='correct'>" + m.correct + "</td></tr>");
         });
         html.push("</tbody></table>");
         box.innerHTML = html.join("");
@@ -366,12 +417,16 @@
         try { localStorage.setItem(BEST_KEY, JSON.stringify(record)); } catch (e) {}
       }
 
-      // --- PRACTICE (untimed, immediate feedback + method, open-ended) ---
-      var pItem, pCount, pCorrect;
+      // --- PRACTICE (untimed, immediate feedback, open-ended) ---
+      var pGrid, pItem, pCount, pCorrect;
 
       function startPractice() {
+        // Same engine: one grid per session, items drawn against it. No timer,
+        // no fixed item cap.
+        pGrid = TR.generateGrid();
         pCount = 0;
         pCorrect = 0;
+        renderGrid(pGrid, "p-grid");
         updateTally();
         nextPractice(null);
         show("practice");
@@ -382,11 +437,21 @@
       }
 
       function nextPractice(prevItem) {
-        pItem = engine.nextItem(prevItem, { difficulty: DIFFICULTY });
-        $("p-prompt").textContent = pItem.prompt;
+        // Reuse the engine's back-to-back rule so practice never repeats the
+        // previous coordinate either.
+        pItem = TR.nextItem(pGrid, prevItem);
+        $("p-coord").textContent = "X = " + fmt(pItem.x) + ", Y = " + fmt(pItem.y);
         $("p-feedback").classList.add("hidden");
         $("p-next-wrap").classList.add("hidden");
-        renderOptions($("p-options"), pItem.options, answerPractice);
+
+        var box = $("p-options");
+        box.innerHTML = "";
+        pItem.options.forEach(function (value, optionIndex) {
+          var b = document.createElement("button");
+          b.textContent = value;
+          b.addEventListener("click", function () { answerPractice(optionIndex); });
+          box.appendChild(b);
+        });
       }
 
       function answerPractice(optionIndex) {
@@ -404,15 +469,17 @@
           else if (i === optionIndex) btns[i].classList.add("opt-wrong");
         }
 
-        // Immediate feedback — about the ITEM/method, not the person.
+        // Immediate explanatory feedback — about the ITEM, not the person.
         var correctValue = pItem.options[correctIndex];
         var fb = $("p-feedback");
         fb.className = "feedback " + (isRight ? "right" : "wrong");
         var lead = isRight
-          ? "<span class='verdict'>Correct.</span> The answer is <strong>" + fmt(correctValue) + "</strong>."
-          : "<span class='verdict'>Not quite.</span> You chose " + fmt(pItem.options[optionIndex]) +
-            "; the answer is <strong>" + fmt(correctValue) + "</strong>.";
-        fb.innerHTML = lead + "<div class='why'>" + pItem.explain + "</div>";
+          ? "<span class='verdict'>Correct.</span> The answer is <strong>" + correctValue + "</strong>."
+          : "<span class='verdict'>Not quite.</span> You chose " + pItem.options[optionIndex] +
+            "; the answer is <strong>" + correctValue + "</strong>.";
+        fb.innerHTML = lead +
+          "<div class='why'>That's the value sitting at column X = " + fmt(pItem.x) +
+          ", row Y = " + fmt(pItem.y) + " in the grid.</div>";
 
         $("p-next-wrap").classList.remove("hidden");
       }

@@ -3,16 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GatorVector — Table Reading</title>
+  <title>Gator Vector — AFOQT Drills</title>
   <style>
     :root {
       --ink: #1a1a1a;
       --muted: #5f6368;
       --line: #d0d0d0;
       --accent: #0b6e4f;
-      --bad: #c5221f;
       --bg: #fafafa;
-      --cell: 2.0ch;
     }
     * { box-sizing: border-box; }
     body {
@@ -21,474 +19,67 @@
       color: var(--ink);
       background: var(--bg);
     }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 1.25rem; }
-    h1 { font-size: 1.25rem; margin: 0 0 0.25rem; }
-    .tagline { color: var(--muted); margin: 0 0 1.25rem; font-size: 0.9rem; }
-    .hidden { display: none !important; }
-
-    button {
-      font: inherit;
-      cursor: pointer;
-      border: 1px solid var(--line);
-      background: #fff;
-      border-radius: 8px;
-      padding: 0.6rem 1rem;
+    .wrap { max-width: 720px; margin: 0 auto; padding: 2rem 1.25rem; }
+    h1 { font-size: 1.6rem; margin: 0 0 0.25rem; }
+    .tagline { color: var(--muted); margin: 0 0 1.75rem; font-size: 0.95rem; }
+    .section-label {
+      text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem;
+      color: var(--muted); font-weight: 700; margin: 0 0 0.75rem;
     }
-    button.primary {
-      background: var(--accent);
+
+    /* Each drill is a full-width clickable card. */
+    .drills { display: flex; flex-direction: column; gap: 0.85rem; }
+    a.drill {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      padding: 1.1rem 1.25rem;
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    a.drill:hover {
       border-color: var(--accent);
-      color: #fff;
-      font-weight: 600;
-      font-size: 1.05rem;
-      padding: 0.75rem 1.5rem;
+      box-shadow: 0 1px 6px rgba(11, 110, 79, 0.12);
     }
-    button:hover { filter: brightness(0.97); }
-    .linklike {
-      border: none; background: none; color: var(--muted);
-      text-decoration: underline; padding: 0.25rem; font-size: 0.85rem;
+    a.drill .row {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
     }
+    a.drill .name { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+    a.drill .go { color: var(--accent); font-weight: 700; font-size: 1.1rem; }
+    a.drill .desc { color: var(--muted); font-size: 0.9rem; margin-top: 0.3rem; line-height: 1.5; }
 
-    /* --- START --- */
-    .best {
-      margin: 1rem 0;
-      padding: 0.75rem 1rem;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #fff;
-      display: inline-block;
-    }
-    .best strong { color: var(--accent); }
-
-    /* --- DRILL header --- */
-    .drillbar {
-      display: flex;
-      align-items: center;
-      gap: 1.25rem;
-      flex-wrap: wrap;
-      margin-bottom: 0.75rem;
-    }
-    .timer {
-      font-variant-numeric: tabular-nums;
-      font-size: 1.6rem;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-    }
-    .timer.low { color: var(--bad); }
-    .progress { color: var(--muted); font-size: 0.95rem; }
-
-    .question {
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin: 0.25rem 0 0.5rem;
-    }
-    .question .coord {
-      font-variant-numeric: tabular-nums;
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 0.1rem 0.6rem;
-    }
-    .options { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0 1rem; }
-    .options button {
-      font-variant-numeric: tabular-nums;
-      font-size: 1.15rem;
-      min-width: 4.5rem;
-      padding: 0.7rem 1rem;
-    }
-
-    /* --- GRID --- */
-    .gridscroll {
-      max-height: 60vh;
-      overflow: auto;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #fff;
-    }
-    table.grid {
-      border-collapse: collapse;
-      /* Monospaced, fixed-advance digits so columns line up and a coordinate is
-         findable by counting — the real test gives no straightedge. */
-      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-variant-numeric: tabular-nums;
-      font-size: 13px;
-    }
-    table.grid th, table.grid td {
-      width: var(--cell);
-      min-width: var(--cell);
-      text-align: center;
-      padding: 2px 4px;
-      white-space: nowrap;
-    }
-    table.grid td { color: var(--ink); }
-    /* Axis labels: sticky so they stay visible while scrolling a big grid.
-       These mark the AXES only — no cell is highlighted or pointed at. */
-    table.grid thead th {
-      position: sticky; top: 0; z-index: 2;
-      background: #eef3f1; color: var(--accent); font-weight: 700;
-      border-bottom: 1px solid var(--line);
-    }
-    table.grid tbody th {
-      position: sticky; left: 0; z-index: 1;
-      background: #eef3f1; color: var(--accent); font-weight: 700;
-      border-right: 1px solid var(--line);
-    }
-    table.grid thead th.corner {
-      left: 0; z-index: 3; background: #e3eae7;
-    }
-    table.grid tbody tr:nth-child(even) td { background: #f7f7f7; }
-
-    /* --- RESULTS --- */
-    .score { font-size: 2rem; font-weight: 800; margin: 0.5rem 0 0.25rem; }
-    .score .of { color: var(--muted); font-weight: 600; font-size: 1.1rem; }
-    .meta { color: var(--muted); margin-bottom: 1rem; }
-    table.review { border-collapse: collapse; width: 100%; max-width: 560px; background: #fff; }
-    table.review th, table.review td {
-      border: 1px solid var(--line); padding: 0.4rem 0.6rem; text-align: left;
-      font-variant-numeric: tabular-nums; font-size: 0.95rem;
-    }
-    table.review th { background: #f0f0f0; }
-    table.review td.correct { color: var(--accent); font-weight: 600; }
-    table.review td.chosen { color: var(--bad); }
-    .allright { color: var(--accent); font-weight: 600; }
-
-    /* --- START mode picker --- */
-    .modepick { display: flex; gap: 0.75rem; margin: 0.75rem 0; flex-wrap: wrap; }
-    button.primary.alt { background: #fff; color: var(--accent); }
-    .modehint { color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
-
-    /* --- PRACTICE --- */
-    .tally {
-      font-weight: 700; font-size: 1.15rem;
-      font-variant-numeric: tabular-nums;
-    }
-    .feedback {
-      border: 1px solid var(--line); border-radius: 8px; background: #fff;
-      padding: 0.6rem 0.9rem; font-size: 1.05rem; max-width: 640px;
-      margin: 0.25rem 0 0.75rem;
-    }
-    .feedback.right { border-color: var(--accent); background: #eef7f2; }
-    .feedback.wrong { border-color: var(--bad); background: #fdeeee; }
-    .feedback .verdict { font-weight: 700; }
-    .feedback.right .verdict { color: var(--accent); }
-    .feedback.wrong .verdict { color: var(--bad); }
-    .feedback .why { color: var(--muted); margin-top: 0.25rem; font-size: 0.9rem; }
-    .options button.opt-correct {
-      border-color: var(--accent); background: #eef7f2; color: var(--accent); font-weight: 700;
-    }
-    .options button.opt-wrong {
-      border-color: var(--bad); background: #fdeeee; color: var(--bad);
-    }
-    .options button:disabled { cursor: default; }
+    .foot { color: var(--muted); font-size: 0.8rem; margin-top: 2rem; line-height: 1.6; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Table Reading</h1>
-    <p class="tagline">AFOQT perceptual-speed drill — find the value at (X, Y) fast. Unofficial study aid.</p>
+    <h1>Gator Vector</h1>
+    <p class="tagline">Unofficial AFOQT study aid — pick a drill to practice.</p>
 
-    <!-- ============ START ============ -->
-    <section id="screen-start">
-      <p>Find the value at each (X, Y) coordinate in the grid.</p>
-      <div id="best" class="best hidden"></div>
-      <div class="modepick">
-        <button id="btn-start" class="primary">Timed Drill</button>
-        <button id="btn-practice" class="primary alt">Practice</button>
-      </div>
-      <p class="modehint">
-        <strong>Timed Drill:</strong> 40 items, 7:00 clock, no feedback — real test conditions.<br>
-        <strong>Practice:</strong> untimed, immediate feedback after each answer; go as long as you like.
-      </p>
-    </section>
+    <p class="section-label">Available drills</p>
+    <div class="drills">
+      <a class="drill" href="tableReading.html">
+        <div class="row">
+          <span class="name">Table Reading</span>
+          <span class="go">→</span>
+        </div>
+        <div class="desc">Perceptual-speed: find the value at an (X, Y) coordinate in a grid, fast. Timed drill or untimed practice.</div>
+      </a>
 
-    <!-- ============ DRILL ============ -->
-    <section id="screen-drill" class="hidden">
-      <div class="drillbar">
-        <div class="timer" id="timer">7:00</div>
-        <div class="progress" id="progress">Item 1 of 40</div>
-        <button class="linklike" id="btn-end">End drill early</button>
-      </div>
-      <div class="question">
-        Find <span class="coord" id="coord">X = 0, Y = 0</span>
-      </div>
-      <div class="options" id="options"></div>
-      <div class="gridscroll">
-        <table class="grid" id="grid"></table>
-      </div>
-    </section>
+      <a class="drill" href="math.html">
+        <div class="row">
+          <span class="name">Math Knowledge</span>
+          <span class="go">→</span>
+        </div>
+        <div class="desc">Bare math — linear equations, area, and exponent simplification, mixed and no calculator. Timed drill or untimed practice.</div>
+      </a>
+    </div>
 
-    <!-- ============ PRACTICE ============ -->
-    <section id="screen-practice" class="hidden">
-      <div class="drillbar">
-        <div class="tally" id="p-tally">0 correct of 0</div>
-        <button class="linklike" id="btn-end-practice">End practice</button>
-      </div>
-      <div class="question">
-        Find <span class="coord" id="p-coord">X = 0, Y = 0</span>
-      </div>
-      <div class="options" id="p-options"></div>
-      <div class="feedback hidden" id="p-feedback"></div>
-      <div id="p-next-wrap" class="hidden" style="margin: 0 0 0.75rem;">
-        <button id="btn-next" class="primary">Next →</button>
-      </div>
-      <div class="gridscroll">
-        <table class="grid" id="p-grid"></table>
-      </div>
-    </section>
-
-    <!-- ============ RESULTS ============ -->
-    <section id="screen-results" class="hidden">
-      <div class="score"><span id="result-correct">0</span> <span class="of">of <span id="result-total">40</span> correct</span></div>
-      <div class="meta" id="result-meta"></div>
-      <div id="review"></div>
-      <div style="margin-top:1.25rem;">
-        <button id="btn-again" class="primary">New Drill</button>
-      </div>
-    </section>
+    <p class="foot">
+      More subtests coming as they're built. Each drill saves your best score locally in this browser.
+    </p>
   </div>
-
-  <!-- Engine (already built + tested) — index.html only orchestrates it. -->
-  <script src="src/tableReading/labelIndex.js"></script>
-  <script src="src/tableReading/gridGenerator.js"></script>
-  <script src="src/tableReading/itemGenerator.js"></script>
-  <script src="src/tableReading/drill.js"></script>
-  <script src="src/tableReading/scoring.js"></script>
-  <script>
-    (function () {
-      var TR = window.TableReading;
-      var TIME_LIMIT = 420;          // spec timeLimitSeconds (7:00)
-      var BEST_KEY = "gatorvector.tableReading.best.v1";
-
-      // --- tiny DOM helpers ---
-      var $ = function (id) { return document.getElementById(id); };
-      function show(name) {
-        ["start", "drill", "practice", "results"].forEach(function (s) {
-          $("screen-" + s).classList.toggle("hidden", s !== name);
-        });
-      }
-      // Render numbers with a real minus sign so negatives read cleanly.
-      function fmt(n) { return String(n).replace("-", "−"); }
-      function clock(sec) {
-        var m = Math.floor(sec / 60);
-        var s = sec % 60;
-        return m + ":" + (s < 10 ? "0" : "") + s;
-      }
-
-      // --- session state ---
-      var grid, drill, current, answers, timeLeft, timerId;
-
-      // --- START ---
-      function renderBest() {
-        var raw = null;
-        try { raw = localStorage.getItem(BEST_KEY); } catch (e) {}
-        var box = $("best");
-        if (!raw) { box.classList.add("hidden"); return; }
-        var best;
-        try { best = JSON.parse(raw); } catch (e) { box.classList.add("hidden"); return; }
-        box.classList.remove("hidden");
-        box.innerHTML = "Best score: <strong>" + best.score + " / " + best.total +
-          "</strong> &nbsp;<span style='color:var(--muted)'>(" + best.date + ")</span>";
-      }
-
-      // Build the 35x35 grid table ONCE per session into table#tableId. No
-      // target cell is marked — finding it unaided is the skill.
-      function renderGrid(grid, tableId) {
-        var axis = grid.axisRange;
-        var html = ["<thead><tr><th class='corner'>Y\\X</th>"];
-        for (var x = -axis; x <= axis; x++) html.push("<th>" + fmt(x) + "</th>");
-        html.push("</tr></thead><tbody>");
-        for (var y = -axis; y <= axis; y++) {
-          var yIndex = TR.labelToIndex(y, axis);
-          html.push("<tr><th>" + fmt(y) + "</th>");
-          for (var x2 = -axis; x2 <= axis; x2++) {
-            var xIndex = TR.labelToIndex(x2, axis);
-            html.push("<td>" + grid.cells[yIndex][xIndex] + "</td>");
-          }
-          html.push("</tr>");
-        }
-        html.push("</tbody>");
-        $(tableId).innerHTML = html.join("");
-      }
-
-      // --- DRILL ---
-      function startDrill() {
-        // ONE grid for the whole session; many items drawn against it.
-        grid = TR.generateGrid();
-        drill = TR.generateDrill(grid);
-        answers = new Array(drill.items.length);
-        current = 0;
-        timeLeft = TIME_LIMIT;
-
-        renderGrid(grid, "grid");
-        renderQuestion();
-        updateTimer();
-        timerId = setInterval(tick, 1000);
-        show("drill");
-      }
-
-      function tick() {
-        timeLeft--;
-        if (timeLeft <= 0) { timeLeft = 0; updateTimer(); endDrill(); return; }
-        updateTimer();
-      }
-
-      function updateTimer() {
-        var t = $("timer");
-        t.textContent = clock(timeLeft);
-        t.classList.toggle("low", timeLeft <= 30);
-      }
-
-      function renderQuestion() {
-        var item = drill.items[current];
-        $("progress").textContent = "Item " + (current + 1) + " of " + drill.items.length;
-        $("coord").textContent = "X = " + fmt(item.x) + ", Y = " + fmt(item.y);
-
-        var box = $("options");
-        box.innerHTML = "";
-        item.options.forEach(function (value, optionIndex) {
-          var b = document.createElement("button");
-          b.textContent = value;
-          // TEST CONDITIONS: record the answer and advance — NO right/wrong shown.
-          b.addEventListener("click", function () { answer(optionIndex); });
-          box.appendChild(b);
-        });
-      }
-
-      function answer(optionIndex) {
-        answers[current] = optionIndex;
-        current++;
-        if (current >= drill.items.length) { endDrill(); return; }
-        renderQuestion();
-      }
-
-      // --- RESULTS ---
-      function endDrill() {
-        clearInterval(timerId);
-        timerId = null;
-        var timeUsed = TIME_LIMIT - timeLeft;
-        var total = drill.items.length;
-        var score = TR.scoreDrill(drill.items, answers);
-
-        $("result-correct").textContent = score;
-        $("result-total").textContent = total;
-        var answered = answers.filter(function (a) { return a !== undefined; }).length;
-        $("result-meta").textContent =
-          "Time used: " + clock(timeUsed) + " of " + clock(TIME_LIMIT) +
-          " · Answered " + answered + " of " + total;
-
-        renderReview(TR.reviewMissed(drill.items, answers));
-        saveBest(score, total, timeUsed);
-        show("results");
-      }
-
-      function renderReview(missed) {
-        var box = $("review");
-        if (missed.length === 0) {
-          box.innerHTML = "<p class='allright'>No misses — every answered item correct.</p>";
-          return;
-        }
-        var html = ["<p>Missed items (" + missed.length + "):</p>",
-          "<table class='review'><thead><tr>",
-          "<th>#</th><th>Coordinate</th><th>You chose</th><th>Correct</th>",
-          "</tr></thead><tbody>"];
-        missed.forEach(function (m) {
-          html.push("<tr><td>" + m.number + "</td>" +
-            "<td>X = " + fmt(m.x) + ", Y = " + fmt(m.y) + "</td>" +
-            "<td class='chosen'>" + (m.chosen === null ? "—" : m.chosen) + "</td>" +
-            "<td class='correct'>" + m.correct + "</td></tr>");
-        });
-        html.push("</tbody></table>");
-        box.innerHTML = html.join("");
-      }
-
-      function saveBest(score, total, timeUsed) {
-        var prev = null;
-        try { prev = JSON.parse(localStorage.getItem(BEST_KEY)); } catch (e) {}
-        if (prev && prev.score >= score) return; // keep the better run
-        var record = {
-          score: score, total: total, timeUsed: timeUsed,
-          date: new Date().toISOString().slice(0, 10),
-        };
-        try { localStorage.setItem(BEST_KEY, JSON.stringify(record)); } catch (e) {}
-      }
-
-      // --- PRACTICE (untimed, immediate feedback, open-ended) ---
-      var pGrid, pItem, pCount, pCorrect;
-
-      function startPractice() {
-        // Same engine: one grid per session, items drawn against it. No timer,
-        // no fixed item cap.
-        pGrid = TR.generateGrid();
-        pCount = 0;
-        pCorrect = 0;
-        renderGrid(pGrid, "p-grid");
-        updateTally();
-        nextPractice(null);
-        show("practice");
-      }
-
-      function updateTally() {
-        $("p-tally").textContent = pCorrect + " correct of " + pCount;
-      }
-
-      function nextPractice(prevItem) {
-        // Reuse the engine's back-to-back rule so practice never repeats the
-        // previous coordinate either.
-        pItem = TR.nextItem(pGrid, prevItem);
-        $("p-coord").textContent = "X = " + fmt(pItem.x) + ", Y = " + fmt(pItem.y);
-        $("p-feedback").classList.add("hidden");
-        $("p-next-wrap").classList.add("hidden");
-
-        var box = $("p-options");
-        box.innerHTML = "";
-        pItem.options.forEach(function (value, optionIndex) {
-          var b = document.createElement("button");
-          b.textContent = value;
-          b.addEventListener("click", function () { answerPractice(optionIndex); });
-          box.appendChild(b);
-        });
-      }
-
-      function answerPractice(optionIndex) {
-        var correctIndex = pItem.correctIndex;
-        var isRight = optionIndex === correctIndex;
-        pCount++;
-        if (isRight) pCorrect++;
-        updateTally();
-
-        // Lock the options and mark the correct one (and the wrong pick, if any).
-        var btns = $("p-options").children;
-        for (var i = 0; i < btns.length; i++) {
-          btns[i].disabled = true;
-          if (i === correctIndex) btns[i].classList.add("opt-correct");
-          else if (i === optionIndex) btns[i].classList.add("opt-wrong");
-        }
-
-        // Immediate explanatory feedback — about the ITEM, not the person.
-        var correctValue = pItem.options[correctIndex];
-        var fb = $("p-feedback");
-        fb.className = "feedback " + (isRight ? "right" : "wrong");
-        var lead = isRight
-          ? "<span class='verdict'>Correct.</span> The answer is <strong>" + correctValue + "</strong>."
-          : "<span class='verdict'>Not quite.</span> You chose " + pItem.options[optionIndex] +
-            "; the answer is <strong>" + correctValue + "</strong>.";
-        fb.innerHTML = lead +
-          "<div class='why'>That's the value sitting at column X = " + fmt(pItem.x) +
-          ", row Y = " + fmt(pItem.y) + " in the grid.</div>";
-
-        $("p-next-wrap").classList.remove("hidden");
-      }
-
-      // --- wiring ---
-      $("btn-start").addEventListener("click", startDrill);
-      $("btn-practice").addEventListener("click", startPractice);
-      $("btn-again").addEventListener("click", function () { renderBest(); startDrill(); });
-      $("btn-end").addEventListener("click", endDrill);
-      $("btn-next").addEventListener("click", function () { nextPractice(pItem); });
-      $("btn-end-practice").addEventListener("click", function () { renderBest(); show("start"); });
-
-      renderBest();
-      show("start");
-    })();
-  </script>
 </body>
 </html>

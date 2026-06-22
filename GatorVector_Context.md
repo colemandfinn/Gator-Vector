@@ -47,9 +47,9 @@ Retrieval practice as the default interaction; spaced-repetition (FSRS-style) sc
 - Local-first means updates require re-download, not an automatic push.
 
 ## Build phases
-- **Phase 0 — Foundations:** tools installed, deploy pipeline proven, research filed, Table Reading spec locked.
-- **Phase 1 — Table Reading vertical slice:** one subtest end to end (generator, timer, scoring, streak, local storage, one clean screen).
-- **Phase 2 — Remaining procedural subtests:** Math Knowledge, Arithmetic Reasoning, then the rendered Block Counting & Instrument Comprehension.
+- **Phase 0 — Foundations:** tools installed, deploy pipeline proven, research filed, Table Reading spec locked. ✅
+- **Phase 1 — Table Reading vertical slice:** one subtest end to end (generator, timer, scoring, streak, local storage, one clean screen). ✅
+- **Phase 2 — Remaining procedural subtests:** Math Knowledge, Arithmetic Reasoning, then the rendered Block Counting & Instrument Comprehension. *In progress — MK slice 1 complete.*
 - **Phase 3 — Content:** curated banks + authored items.
 - **Phase 4 — Cross-cutting layer:** dashboard, composite estimator, spaced repetition, full-length sim, polish.
 - **Phase 5 — Test & calibrate:** trial with cadets (incl. friends who've taken the AFOQT), tune difficulty, release.
@@ -57,16 +57,47 @@ Retrieval practice as the default interaction; spaced-repetition (FSRS-style) sc
 ## Tech stack
 - **Build tools:** Claude Code (native installer, no Node.js required), VS Code, Git + GitHub.
 - **App:** static web (HTML / CSS / JavaScript), runs client-side.
-- **Hosting:** GitHub Pages.
+- **Hosting:** GitHub Pages — repo `colemandfinn/Gator-Vector` (note capital G, V; case-sensitive). Live at `colemandfinn.github.io/Gator-Vector/`.
 - **Storage:** browser local storage + export/import.
+- **Push workflow note:** pushes go through VS Code's Source Control panel (it holds the GitHub login). The terminal/Claude Code keychain has no saved credentials, so terminal `git push` prompts for a token and fails — that's expected and not a real blocker; use the VS Code push button. Claude Code may report auth as "still pending" — that's stale; pushes are succeeding via VS Code.
 
-## Current status
-**Phase 1 complete — Table Reading vertical slice is done.** The full procedural engine is built and committed: label↔index helper, grid generator, item generator (v1 neighbor-based distractors), and the drill loop, each in its own file under `src/tableReading/`. The app (`tableReading.html`, reached from the `index.html` landing page) runs end to end client-side: a **timed drill** (40 items, 7:00 clock, test-conditions with no per-item feedback) and an **untimed practice mode** (immediate explanatory feedback, open-ended), plus number-correct scoring (no guessing penalty) and best-score persistence in local storage. Logic is covered by a zero-tooling test page (`test.html`) that loads the source directly and prints PASS/FAIL — all passing. Six commits so far. This proves the reusable pattern (generator → drill → timer/scoring → local storage → one clean screen) for the remaining procedural subtests.
+## Site structure (as of Session 3)
+- `index.html` — landing page ("Gator Vector"), lists available drills as cards. Site entry point / front door.
+- `tableReading.html` — the Table Reading drill (was `index.html` through Phase 1; renamed via `git mv` when the landing page was added).
+- `math.html` — the Math Knowledge drill (timed + practice modes).
+- `src/tableReading/` — Table Reading engine (labelIndex, grid, item, drill loop, scoring).
+- `src/mathKnowledge/` — MK engine: `cleanAnswer.js`, `linearEquation.js`, `area.js`, `exponents.js`, `engine.js` (registry + item assembly + interleaved drill + scoring/review), `registerCartridges.js`.
+- `test.html` — Table Reading test harness (21 tests). `mathTest.html` — MK test harness.
+- `research/` — `GatorVector_AFOQT_Research.md`, `GatorVector_Learning_Science__Research.md`, `TableReading_Spec.md`, `MathKnowledge_Spec.md`.
 
-**Next: Phase 2 — remaining procedural subtests:** Math Knowledge, then Arithmetic Reasoning, then the rendered Block Counting & Instrument Comprehension.
+## Current status — end of Session 3
+**Phase 2 in progress; Math Knowledge slice 1 complete and live.** Highlights this session:
+- **Deployed.** App is live on GitHub Pages and shared with an ROTC cadet tester. Front-door landing page links to both drills.
+- **Math Knowledge slice 1 built & test-hardened.** Engine + registry + three self-contained cartridges (linear equations, rectangle/circle area, exponent simplification), each with clean-answer-by-construction, ≥2 genuine error-pattern distractors, integers-only across all five options (§4.1.7 invariant), no clustering tell, randomized answer position. Timed drill (25 items / 22:00, real MK timing) + untimed practice mode with method explanations. `MathKnowledge_Spec.md` locked and citation-verified.
+- **Architecture bet validated:** the self-contained-cartridge / math-free-engine design held across three genuinely different problem shapes. Assembly lifted from cartridges into the engine once the shared engine existed (deferred extraction done at the right time).
 
-**Open flags carried forward (still need cadet-tester feedback)** — both from the Table Reading spec, neither a launch blocker:
-- **Negative cell values** — unconfirmed whether real Form T tables ever contain negative numbers in cells (v1 uses non-negative 0–99; `cellValueRange` is the single knob to flip if confirmed).
-- **Timing — paper vs. eAFOQT** — paper Table Reading is 40 items / 7 min, but eAFOQT per-section timing may differ and isn't independently confirmed (default 420 s; `timeLimitSeconds`/`itemCount` are configurable for exactly this reason).
+### Open flags — awaiting cadet-tester feedback (do NOT hardcode as resolved)
+Table Reading:
+- Whether negative cell values appear on real Form T.
+- Paper vs. eAFOQT timing conflict.
+- V1 distractor difficulty: a first cold run scored 40/40 in 6:02 — possibly too easy, possibly just a strong tester. V2 same-row/column near-miss distractors still deferred pending this.
+- **UI:** the drill screen allowed scrolling to reach answers — may undercut the speed pressure that *is* the test. Tighten layout so grid + options sit on one screen.
 
-*Foundations (Phase 0) done earlier: Mac with Xcode, GitHub account, VS Code, both research files complete, Table Reading spec locked.*
+Math Knowledge:
+- **F-1:** difficulty-level → number-range mapping is an unvalidated default.
+- **F-2:** distractor-set realism per cartridge ("do these look like real options?").
+- **F-3:** does real Form T MK lean more algebra or geometry? (affects cartridge priority after slice 1).
+- **F-4:** π convention on circle items (currently π=22/7, radii multiples of 7 to force clean integers).
+- **F-5:** circle-area item *framing* may feel unfair under no-calculator conditions (surfaced by playing it). Options on the table: state the πr² formula on-screen, switch to "in terms of π" answers, or rectangles-only. The integer-clean construction is sound; only the presentation is unvalidated.
+
+### Next session — natural starting points
+- Resolve F-5 (and F-1/F-2/F-4) once the ROTC tester weighs in on the MK circle items.
+- Act on Table Reading tester feedback (difficulty, scrolling-layout fix).
+- Continue Phase 2: either **Arithmetic Reasoning** (layers word-problem framing onto the MK engine just built) or the **rendered spatial subtests** (Block Counting, Instrument Comprehension — real drawing/vector-art effort).
+
+## Working patterns (keep)
+- Design decisions worked through in chat first; implementation prompts then pasted into Claude Code.
+- One logical component per commit (the real safety net with "accept edits on" active).
+- Specs locked + citations verified before code references them ("where does that come from?").
+- Known-unknowns get configurable parameters with explicit flags, not hardcoded guesses.
+- Test the risky logic with assertions; test the UI by actually playing it (caught the F-5 circle-framing issue this way).

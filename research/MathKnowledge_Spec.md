@@ -78,6 +78,7 @@ Per-item: **1 correct + 4 distractors**, all five drawn so the set looks natural
 4. **Plausibility floor for fillers.** A filler is not "answer + 3." It must be a plausible *wrong answer to this specific problem*: same order of magnitude, same sign behavior, ideally looking like it could come from some miscalculation. For area items, fillers are themselves plausible areas; for equations, plausible solutions.
 5. **Position randomization.** Correct answer's slot (A–E) is random per item. Guard against positional tells: the correct answer should not disproportionately land in any position, nor always be the numerically largest/smallest/middle value.
 6. **Dedup.** No duplicate option values; if a distractor collides with the answer or another distractor, regenerate. (Same discipline as Table Reading.)
+7. **All five options clean (§3).** Every one of the five options — the correct answer **and** all four distractors/fillers — must satisfy the §3 "clean" definition for the cartridge. No ugly value (a fraction, decimal, or irrational the student couldn't reach by hand) may appear in **any** slot. An error pattern that would yield an ugly number is skipped (or rendered in a clean equivalent form), and fillers are generated clean from the start. This is not only a no-calculator courtesy: a lone non-clean option is itself a structural tell — it can only be a wrong answer — so this rule also protects §4.1.3. The harness (§5.2) must assert cleanness across **all five** options of **every** item, not just the correct answer.
 
 ### 4.2 Per-cartridge error-pattern catalogs (starting sets)
 **Linear equations (`ax + b = c`):** sign error (didn't flip sign when moving `b`); operation error (added instead of subtracted, or divided wrong); off-by-the-coefficient (forgot to divide by `a`); solved for the wrong intermediate value. *(Easily ≥3 real patterns.)*
@@ -103,7 +104,7 @@ Each cartridge's `generate(difficulty)` takes a level controlling its number ran
 
 ### 5.2 Test harness (mirror `test.html`)
 Browser-based harness covering all pure logic, in the spirit of Phase 1's 21 passing tests. Minimum assertions:
-- **Clean-answer:** every generated correct answer satisfies the cartridge's clean definition (§3) across many samples per cartridge.
+- **Clean-answer (all five options):** every option of every item — the correct answer **and** all four distractors/fillers — satisfies the cartridge's clean definition (§3), across many samples per cartridge. Asserting only the correct answer is insufficient (§4.1.7).
 - **Distractor count & uniqueness:** exactly 4 distractors, all distinct from each other and the answer.
 - **Minimum real patterns:** ≥2 error-pattern distractors per item (§4.1.1).
 - **Spread:** no option is an outlier beyond the defined spread tolerance (§4.1.3).

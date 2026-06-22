@@ -131,6 +131,23 @@
       assert(distOk + "/" + DN + " items: 5 distinct options, exactly 4 distractors, >=2 real patterns" +
         (distFail ? " — first failure: " + distFail : ""), distOk === DN);
 
+      // --- all five options clean (§4.1.7, §3) ----------------------------
+      // Not just the correct answer: every option — answer AND all four
+      // distractors/fillers — must satisfy the §3 clean definition. A lone
+      // ugly value can only be a wrong answer, so it is a structural tell.
+      heading("clean options — all five, every item (§4.1.7)");
+      var rngC = mulberry32(31251073);
+      var CN = 6000, allCleanOk = 0, allCleanFail = null;
+      for (var ci = 0; ci < CN; ci++) {
+        var cit = linear.buildItem(LEVELS[ci % 3], { rng: rngC });
+        var ugly = cit.options.filter(function (v) { return !clean.isCleanInteger(v); });
+        if (ugly.length === 0) allCleanOk++;
+        else if (!allCleanFail) allCleanFail = "lvl " + LEVELS[ci % 3] + ": ugly " + ugly.join(",") +
+          "  [" + cit.equation + " -> " + cit.options.join(",") + "]";
+      }
+      assert(allCleanOk + "/" + CN + " items: all 5 options are clean integers (§3), not just the answer" +
+        (allCleanFail ? " — first failure: " + allCleanFail : ""), allCleanOk === CN);
+
       // --- spread: no clustering tell (§4.1.3) ----------------------------
       // Fail an item if any single gap between sorted options exceeds 60% of the
       // total range — that is the signature of "tight cluster + one far option",

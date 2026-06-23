@@ -105,22 +105,25 @@
     .gridscroll {
       max-height: 60vh;
       overflow: auto;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #fff;
     }
     table.grid {
       border-collapse: collapse;
+      table-layout: fixed;
       /* Monospaced, fixed-advance digits so columns line up and a coordinate is
          findable by counting — the real test gives no straightedge. */
       font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       font-variant-numeric: tabular-nums;
       font-size: var(--grid-fs, 13px);
       line-height: 1.15;
+      /* Frame lives on the grid itself so it hugs the table, not a stretched box. */
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
     }
     table.grid th, table.grid td {
-      width: var(--cell);
-      min-width: var(--cell);
+      width: var(--cell-w, 2ch);
+      height: var(--cell-h, auto);
+      min-width: 0;
       text-align: center;
       padding: 1px 3px;
       white-space: nowrap;
@@ -238,9 +241,10 @@
       flex: 1 1 auto;
       min-height: 0;
       max-height: none;
+      overflow: auto;
       display: flex;
-      justify-content: center; /* center the grid when there's leftover width */
-      align-items: flex-start;
+      align-items: center;     /* center the square grid in any leftover space */
+      justify-content: center;
     }
   </style>
 </head>
@@ -545,9 +549,10 @@
       }
 
       // --- FIT GRID TO VIEWPORT ---
-      // Shrink the active grid's font so all 35 rows + header and all columns fit
-      // the leftover height/width exactly, with no internal scroll — matching the
-      // real eAFOQT, where the whole table is on one screen. Presentational only.
+      // Size all 35×35 cells SQUARE to fill the binding dimension (height on a wide
+      // window), then derive the font from that cell. The grid stays square and the
+      // frame hugs it — matching the real eAFOQT, where the whole table is on one
+      // screen. Presentational only.
       function fitActiveGrid() {
         var table;
         if (!$("screen-drill").classList.contains("hidden")) table = $("grid");
@@ -567,10 +572,21 @@
         var LINE_H = 1.15, PAD_V = 2, PAD_H = 6, CHAR_W = 0.6, MAX_CHARS = 3;
         var SAFETY = 6; // a few px so a scrollbar never appears
 
-        var byHeight = ((container.clientHeight - SAFETY) / nRows - PAD_V) / LINE_H;
-        var byWidth = ((container.clientWidth - SAFETY) / nCols - PAD_H) / (CHAR_W * MAX_CHARS);
+        // One square cell size that fits both dimensions; floor keeps us inside the
+        // container so no scrollbar appears.
+        var cell = Math.min(
+          Math.floor((container.clientHeight - SAFETY) / nRows),
+          Math.floor((container.clientWidth - SAFETY) / nCols)
+        );
+        table.style.setProperty("--cell-w", cell + "px");
+        table.style.setProperty("--cell-h", cell + "px");
 
-        var fs = Math.floor(Math.min(byHeight, byWidth));
+        // Font derived from the square cell: must fit the cell vertically (line-height
+        // + vertical padding) and horizontally (up to 3-char axis labels).
+        var fs = Math.floor(Math.min(
+          (cell - PAD_V) / LINE_H,
+          (cell - PAD_H) / (CHAR_W * MAX_CHARS)
+        ));
         fs = Math.max(7, Math.min(30, fs)); // clamp to a legible range
         table.style.setProperty("--grid-fs", fs + "px");
       }

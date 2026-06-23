@@ -244,15 +244,15 @@
       max-height: none;
       overflow: auto;
     }
-    /* Two-column body: controls + grid pushed together against the right edge,
-       so all the leftover space pools on the left. */
+    /* Two-column body: controls + grid pushed together against the left edge,
+       so all the leftover space pools on the right. */
     #screen-drill:not(.hidden) .drill-main,
     #screen-practice:not(.hidden) .drill-main {
       flex: 1 1 auto;
       min-height: 0;
       display: flex;
       gap: 1.5rem;
-      justify-content: flex-end;
+      justify-content: flex-start;
     }
     .drill-controls { flex: 0 0 320px; width: 320px; }
     .drill-controls .options { flex-direction: column; } /* stack answer buttons */

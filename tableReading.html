@@ -202,6 +202,7 @@
       flex-direction: column;
       height: 100vh;   /* fallback for browsers without dvh */
       height: 100dvh;
+      max-width: none; /* use full window width during a drill so the grid can grow */
     }
     /* Reclaim vertical space: hide page chrome during an active drill/practice. */
     body:has(#screen-drill:not(.hidden)) .homelink,
@@ -237,6 +238,9 @@
       flex: 1 1 auto;
       min-height: 0;
       max-height: none;
+      display: flex;
+      justify-content: center; /* center the grid when there's leftover width */
+      align-items: flex-start;
     }
   </style>
 </head>
@@ -567,7 +571,7 @@
         var byWidth = ((container.clientWidth - SAFETY) / nCols - PAD_H) / (CHAR_W * MAX_CHARS);
 
         var fs = Math.floor(Math.min(byHeight, byWidth));
-        fs = Math.max(7, Math.min(15, fs)); // clamp to a legible range
+        fs = Math.max(7, Math.min(30, fs)); // clamp to a legible range
         table.style.setProperty("--grid-fs", fs + "px");
       }
 

@@ -236,24 +236,23 @@
     #screen-practice:not(.hidden) #p-next-wrap {
       flex: 0 0 auto;
     }
-    /* The grid fills the leftover height and scrolls internally if it's taller. */
+    /* The box hugs the grid (no internal slack) and scrolls only if too tall. */
     #screen-drill:not(.hidden) .gridscroll,
     #screen-practice:not(.hidden) .gridscroll {
-      flex: 1 1 auto;
+      flex: 0 0 auto;
       min-height: 0;
       max-height: none;
       overflow: auto;
-      display: flex;
-      align-items: flex-start;     /* grid pinned to the top of the right column */
-      justify-content: flex-end;   /* grid on the RIGHT, beside the controls */
     }
-    /* Two-column body: fixed-width controls on the left, grid filling the right. */
+    /* Two-column body: controls + grid pushed together against the right edge,
+       so all the leftover space pools on the left. */
     #screen-drill:not(.hidden) .drill-main,
     #screen-practice:not(.hidden) .drill-main {
       flex: 1 1 auto;
       min-height: 0;
       display: flex;
       gap: 1.5rem;
+      justify-content: flex-end;
     }
     .drill-controls { flex: 0 0 320px; width: 320px; }
     .drill-controls .options { flex-direction: column; } /* stack answer buttons */
@@ -578,9 +577,18 @@
         else if (!$("screen-practice").classList.contains("hidden")) table = $("p-grid");
         else return;
 
-        var container = table.closest(".gridscroll");
-        if (!container || container.clientHeight === 0) return; // not laid out yet
+        // Measure the available area from .drill-main: .gridscroll now hugs the grid,
+        // so its own width can no longer drive the fit. Available width = the main row
+        // minus the fixed controls column and the gap between them.
+        var gridscroll = table.closest(".gridscroll");
+        var main = gridscroll ? gridscroll.closest(".drill-main") : null;
+        if (!main || main.clientHeight === 0) return; // not laid out yet
         if (!table.rows.length) return;
+
+        var controls = main.querySelector(".drill-controls");
+        var GAP = 24; // matches the 1.5rem gap between controls and grid
+        var availH = main.clientHeight;
+        var availW = main.clientWidth - (controls ? controls.offsetWidth : 0) - GAP;
 
         var nRows = table.rows.length;                 // incl. axis header row
         var nCols = table.rows[0].cells.length;        // incl. axis label column
@@ -594,8 +602,8 @@
         // One square cell size that fits both dimensions; floor keeps us inside the
         // container so no scrollbar appears.
         var cell = Math.min(
-          Math.floor((container.clientHeight - SAFETY) / nRows),
-          Math.floor((container.clientWidth - SAFETY) / nCols)
+          Math.floor((availH - SAFETY) / nRows),
+          Math.floor((availW - SAFETY) / nCols)
         );
         table.style.setProperty("--cell-w", cell + "px");
         table.style.setProperty("--cell-h", cell + "px");

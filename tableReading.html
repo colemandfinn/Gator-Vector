@@ -113,7 +113,6 @@
          findable by counting — the real test gives no straightedge. */
       font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       font-variant-numeric: tabular-nums;
-      font-size: var(--grid-fs, 13px);
       line-height: 1.15;
       /* Frame lives on the grid itself so it hugs the table, not a stretched box. */
       border: 1px solid var(--line);
@@ -128,6 +127,8 @@
       padding: 1px 3px;
       white-space: nowrap;
     }
+    table.grid th { font-size: var(--grid-fs-axis, 13px); }
+    table.grid td { font-size: var(--grid-fs-data, 13px); }
     table.grid td { color: var(--ink); }
     /* Axis labels: sticky so they stay visible while scrolling a big grid.
        These mark the AXES only — no cell is highlighted or pointed at. */
@@ -581,14 +582,22 @@
         table.style.setProperty("--cell-w", cell + "px");
         table.style.setProperty("--cell-h", cell + "px");
 
-        // Font derived from the square cell: must fit the cell vertically (line-height
-        // + vertical padding) and horizontally (up to 3-char axis labels).
-        var fs = Math.floor(Math.min(
+        // Two fonts derived from the square cell. Axis labels (<th>) must fit up to
+        // 3 chars ("−17"); data values (<td>) only need 2 digits, so they can be
+        // bigger. Both fit the cell vertically (line-height + vertical padding).
+        var axisFs = Math.floor(Math.min(
           (cell - PAD_V) / LINE_H,
-          (cell - PAD_H) / (CHAR_W * MAX_CHARS)
+          (cell - PAD_H) / (CHAR_W * 3)
         ));
-        fs = Math.max(7, Math.min(30, fs)); // clamp to a legible range
-        table.style.setProperty("--grid-fs", fs + "px");
+        axisFs = Math.max(7, Math.min(30, axisFs)); // clamp to a legible range
+        table.style.setProperty("--grid-fs-axis", axisFs + "px");
+
+        var dataFs = Math.floor(Math.min(
+          (cell - PAD_V) / LINE_H,
+          (cell - PAD_H) / (CHAR_W * 2)
+        ));
+        dataFs = Math.max(7, Math.min(30, dataFs)); // clamp to a legible range
+        table.style.setProperty("--grid-fs-data", dataFs + "px");
       }
 
       // Re-fit on window resize (debounced) so the grid tracks the viewport.

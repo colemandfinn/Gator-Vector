@@ -244,9 +244,19 @@
       max-height: none;
       overflow: auto;
       display: flex;
-      align-items: flex-start;     /* sit the grid flush top-left under the controls */
-      justify-content: flex-start;
+      align-items: flex-start;     /* grid pinned to the top of the right column */
+      justify-content: flex-end;   /* grid on the RIGHT, beside the controls */
     }
+    /* Two-column body: fixed-width controls on the left, grid filling the right. */
+    #screen-drill:not(.hidden) .drill-main,
+    #screen-practice:not(.hidden) .drill-main {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      gap: 1.5rem;
+    }
+    .drill-controls { flex: 0 0 320px; width: 320px; }
+    .drill-controls .options { flex-direction: column; } /* stack answer buttons */
   </style>
 </head>
 <body>
@@ -276,12 +286,16 @@
         <div class="progress" id="progress">Item 1 of 40</div>
         <button class="linklike" id="btn-end">End drill early</button>
       </div>
-      <div class="question">
-        Find <span class="coord" id="coord">X = 0, Y = 0</span>
-      </div>
-      <div class="options" id="options"></div>
-      <div class="gridscroll">
-        <table class="grid" id="grid"></table>
+      <div class="drill-main">
+        <div class="drill-controls">
+          <div class="question">
+            Find <span class="coord" id="coord">X = 0, Y = 0</span>
+          </div>
+          <div class="options" id="options"></div>
+        </div>
+        <div class="gridscroll">
+          <table class="grid" id="grid"></table>
+        </div>
       </div>
     </section>
 
@@ -291,16 +305,20 @@
         <div class="tally" id="p-tally">0 correct of 0</div>
         <button class="linklike" id="btn-end-practice">End practice</button>
       </div>
-      <div class="question">
-        Find <span class="coord" id="p-coord">X = 0, Y = 0</span>
-      </div>
-      <div class="options" id="p-options"></div>
-      <div class="feedback hidden" id="p-feedback"></div>
-      <div id="p-next-wrap" class="hidden" style="margin: 0 0 0.75rem;">
-        <button id="btn-next" class="primary">Next →</button>
-      </div>
-      <div class="gridscroll">
-        <table class="grid" id="p-grid"></table>
+      <div class="drill-main">
+        <div class="drill-controls">
+          <div class="question">
+            Find <span class="coord" id="p-coord">X = 0, Y = 0</span>
+          </div>
+          <div class="options" id="p-options"></div>
+          <div class="feedback hidden" id="p-feedback"></div>
+          <div id="p-next-wrap" class="hidden" style="margin: 0 0 0.75rem;">
+            <button id="btn-next" class="primary">Next →</button>
+          </div>
+        </div>
+        <div class="gridscroll">
+          <table class="grid" id="p-grid"></table>
+        </div>
       </div>
     </section>
 

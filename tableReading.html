@@ -184,6 +184,59 @@
       border-color: var(--bad); background: #fdeeee; color: var(--bad);
     }
     .options button:disabled { cursor: default; }
+
+    /* --- ONE-VIEWPORT LAYOUT (drill/practice only) ---
+       While a Timed Drill or Practice screen is the active (non-.hidden) screen,
+       pin everything to a single viewport so the answer options stay co-visible
+       with the grid — matching the real eAFOQT, where the table and answers share
+       one screen. Scoped via :has() so start/results pages scroll normally and
+       no other screen is affected. Presentational only — no JS involved. */
+    body:has(#screen-drill:not(.hidden)),
+    body:has(#screen-practice:not(.hidden)) {
+      overflow: hidden;
+    }
+    body:has(#screen-drill:not(.hidden)) .wrap,
+    body:has(#screen-practice:not(.hidden)) .wrap {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;   /* fallback for browsers without dvh */
+      height: 100dvh;
+    }
+    /* Reclaim vertical space: hide page chrome during an active drill/practice. */
+    body:has(#screen-drill:not(.hidden)) .homelink,
+    body:has(#screen-drill:not(.hidden)) h1,
+    body:has(#screen-drill:not(.hidden)) .tagline,
+    body:has(#screen-practice:not(.hidden)) .homelink,
+    body:has(#screen-practice:not(.hidden)) h1,
+    body:has(#screen-practice:not(.hidden)) .tagline {
+      display: none;
+    }
+    /* The active section fills the remaining height as a flex column. */
+    #screen-drill:not(.hidden),
+    #screen-practice:not(.hidden) {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    /* Control band stays pinned at the top, sized to its content. */
+    #screen-drill:not(.hidden) .drillbar,
+    #screen-drill:not(.hidden) .question,
+    #screen-drill:not(.hidden) .options,
+    #screen-practice:not(.hidden) .drillbar,
+    #screen-practice:not(.hidden) .question,
+    #screen-practice:not(.hidden) .options,
+    #screen-practice:not(.hidden) .feedback,
+    #screen-practice:not(.hidden) #p-next-wrap {
+      flex: 0 0 auto;
+    }
+    /* The grid fills the leftover height and scrolls internally if it's taller. */
+    #screen-drill:not(.hidden) .gridscroll,
+    #screen-practice:not(.hidden) .gridscroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none;
+    }
   </style>
 </head>
 <body>

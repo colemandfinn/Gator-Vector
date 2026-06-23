@@ -613,7 +613,7 @@
         // bigger. Both fit the cell vertically (line-height + vertical padding).
         var axisFs = Math.floor(Math.min(
           (cell - PAD_V) / LINE_H,
-          (cell - PAD_H) / (CHAR_W * 3)
+          (cell - PAD_H) / (CHAR_W * 2)
         ));
         axisFs = Math.max(7, Math.min(30, axisFs)); // clamp to a legible range
         table.style.setProperty("--grid-fs-axis", axisFs + "px");

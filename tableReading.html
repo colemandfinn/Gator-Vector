@@ -115,13 +115,14 @@
          findable by counting — the real test gives no straightedge. */
       font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       font-variant-numeric: tabular-nums;
-      font-size: 13px;
+      font-size: var(--grid-fs, 13px);
+      line-height: 1.15;
     }
     table.grid th, table.grid td {
       width: var(--cell);
       min-width: var(--cell);
       text-align: center;
-      padding: 2px 4px;
+      padding: 1px 3px;
       white-space: nowrap;
     }
     table.grid td { color: var(--ink); }
@@ -382,6 +383,7 @@
         updateTimer();
         timerId = setInterval(tick, 1000);
         show("drill");
+        requestAnimationFrame(fitActiveGrid); // fit after layout settles
       }
 
       function tick() {
@@ -483,6 +485,7 @@
         updateTally();
         nextPractice(null);
         show("practice");
+        requestAnimationFrame(fitActiveGrid); // fit after layout settles
       }
 
       function updateTally() {
@@ -536,6 +539,44 @@
 
         $("p-next-wrap").classList.remove("hidden");
       }
+
+      // --- FIT GRID TO VIEWPORT ---
+      // Shrink the active grid's font so all 35 rows + header and all columns fit
+      // the leftover height/width exactly, with no internal scroll — matching the
+      // real eAFOQT, where the whole table is on one screen. Presentational only.
+      function fitActiveGrid() {
+        var table;
+        if (!$("screen-drill").classList.contains("hidden")) table = $("grid");
+        else if (!$("screen-practice").classList.contains("hidden")) table = $("p-grid");
+        else return;
+
+        var container = table.closest(".gridscroll");
+        if (!container || container.clientHeight === 0) return; // not laid out yet
+        if (!table.rows.length) return;
+
+        var nRows = table.rows.length;                 // incl. axis header row
+        var nCols = table.rows[0].cells.length;        // incl. axis label column
+
+        // Per-cell geometry (must match the CSS above):
+        //   line-height 1.15, vertical padding 1px×2, horizontal padding 3px×2.
+        //   Axis labels run up to 3 chars ("−17"); monospace advance ≈ 0.6em.
+        var LINE_H = 1.15, PAD_V = 2, PAD_H = 6, CHAR_W = 0.6, MAX_CHARS = 3;
+        var SAFETY = 6; // a few px so a scrollbar never appears
+
+        var byHeight = ((container.clientHeight - SAFETY) / nRows - PAD_V) / LINE_H;
+        var byWidth = ((container.clientWidth - SAFETY) / nCols - PAD_H) / (CHAR_W * MAX_CHARS);
+
+        var fs = Math.floor(Math.min(byHeight, byWidth));
+        fs = Math.max(7, Math.min(15, fs)); // clamp to a legible range
+        table.style.setProperty("--grid-fs", fs + "px");
+      }
+
+      // Re-fit on window resize (debounced) so the grid tracks the viewport.
+      var resizeTimer = null;
+      window.addEventListener("resize", function () {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(fitActiveGrid, 120);
+      });
 
       // --- wiring ---
       $("btn-start").addEventListener("click", startDrill);

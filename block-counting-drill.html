@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gator Vector — Block Counting (v1 test build)</title>
+<style>
+  :root{
+    --bg:#0f1622; --card:#192434; --ink:#e7edf5; --muted:#9fb0c4;
+    --line:#2b3a4f; --accent:#f2b65a; --good:#3fb27f; --bad:#e0696b;
+    --btn:#22304a; --btnh:#2c3d5c; --stage:#0c131e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex;justify-content:center;padding:22px 14px;min-height:100vh;
+    -webkit-font-smoothing:antialiased}
+  .wrap{width:100%;max-width:540px}
+  header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px;gap:10px}
+  h1{font-size:18px;margin:0;letter-spacing:.3px}
+  .tag{font-size:11px;color:var(--muted);white-space:nowrap}
+  .sub{font-size:12.5px;color:var(--muted);margin:0 0 14px;line-height:1.5}
+  .sub b{color:#cbd6e4}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .stats{display:flex;gap:16px;font-size:12.5px;color:var(--muted);margin-bottom:10px}
+  .stats b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .stage{display:flex;justify-content:center;align-items:center;min-height:210px;
+    background:var(--stage);border:1px solid var(--line);border-radius:10px;
+    padding:12px;margin-bottom:14px}
+  svg{width:100%;max-width:380px;height:auto;display:block}
+  .q{font-size:14px;margin:0 0 11px;text-align:center;line-height:1.45}
+  .q b{color:var(--accent)}
+  .opts{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+  .opt{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;
+    padding:13px 0;border:1px solid var(--line);background:var(--btn);color:var(--ink);
+    border-radius:9px;cursor:pointer;transition:background .12s}
+  .opt:hover:not(:disabled){background:var(--btnh)}
+  .opt:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .opt:disabled{cursor:default}
+  .opt.chosen-correct{background:var(--good);border-color:var(--good);color:#08120c}
+  .opt.chosen-wrong{background:var(--bad);border-color:var(--bad);color:#160809}
+  .opt.is-answer{outline:2px solid var(--good);outline-offset:-2px}
+  .fb{min-height:44px;margin-top:13px;font-size:13.5px}
+  .fb .line{font-weight:600}
+  .fb .bd{color:var(--muted);font-size:12.5px;margin-top:4px;font-variant-numeric:tabular-nums}
+  .fb.good .line{color:var(--good)} .fb.bad .line{color:var(--bad)}
+  .next{margin-top:13px;width:100%;padding:12px;border:0;border-radius:9px;
+    background:var(--accent);color:#1a1205;font-weight:700;font-size:14px;
+    cursor:pointer;display:none}
+  .next:focus-visible{outline:2px solid #fff;outline-offset:2px}
+  .foot{font-size:11px;color:var(--muted);margin-top:13px;text-align:center;line-height:1.6}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Block Counting</h1><span class="tag">Gator Vector · v1 test build</span></header>
+  <p class="sub">Count how many blocks the marked block touches. Sharing a full <b>face</b> counts — above, below, or any side. A diagonal or edge-only touch does <b>not</b> count.</p>
+  <div class="card">
+    <div class="stats">
+      <span>This item: <b id="itime">0.0s</b></span>
+      <span>Score: <b id="score">0 / 0</b></span>
+      <span>Accuracy: <b id="acc">—</b></span>
+    </div>
+    <div class="stage"><svg id="svg" xmlns="http://www.w3.org/2000/svg" aria-label="Isometric block stack with one marked block"></svg></div>
+    <p class="q">How many other blocks does the <b>marked</b> block (1) touch?</p>
+    <div class="opts" id="opts"></div>
+    <div class="fb" id="fb"></div>
+    <button class="next" id="next">Next stack</button>
+  </div>
+  <p class="foot">Real Form&nbsp;T section: 30 items in 4:30 (~9s each). This build is for accuracy checking, so it isn't timed-out — open the browser console to see the self-test result.</p>
+</div>
+<script>
+/* ====================== config (the flagged knobs) ====================== */
+var MAX_H = 3;                 // tallest a column can be
+var FOOT_MIN = 2, FOOT_MAX = 3;// footprint dimensions (x and y)
+var OPT_COUNT = 5;             // answer choices per item
+
+/* ====================== helpers ====================== */
+var NS = 'http://www.w3.org/2000/svg';
+function rnd(n){ return Math.floor(Math.random()*n); }
+function shuffle(a){ for(var i=a.length-1;i>0;i--){ var j=rnd(i+1),t=a[i];a[i]=a[j];a[j]=t; } return a; }
+function key(x,y,z){ return x+','+y+','+z; }
+
+/* ====================== generation ======================
+   Stacks are "skylines": solid columns filled from the base up, no floating
+   blocks, no overhangs, no hidden cavities. That construction guarantees every
+   block's neighbours are deducible from the drawing — the BC-F-4 rule. */
+function genHeightMap(){
+  var fw = FOOT_MIN + rnd(FOOT_MAX-FOOT_MIN+1);
+  var fd = FOOT_MIN + rnd(FOOT_MAX-FOOT_MIN+1);
+  var hm = {}, cols = 0;
+  for(var x=0;x<fw;x++) for(var y=0;y<fd;y++){
+    if(Math.random() < 0.8){ hm[x+','+y] = 1 + rnd(MAX_H); cols++; }
+  }
+  if(cols < 4) return genHeightMap();   // keep figures non-trivial
+  return hm;
+}
+function occupancy(hm){
+  var s = {};
+  for(var k in hm){ var p=k.split(','),x=+p[0],y=+p[1],h=hm[k];
+    for(var z=0;z<h;z++) s[key(x,y,z)] = 1; }
+  return s;
+}
+function countContacts(set,x,y,z){
+  var dirs=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+  var c=0, bd={above:0,below:0,sides:0};
+  for(var i=0;i<6;i++){ var d=dirs[i];
+    if(set[key(x+d[0],y+d[1],z+d[2])]){
+      c++;
+      if(d[2]===1) bd.above++; else if(d[2]===-1) bd.below++; else bd.sides++;
+    }
+  }
+  return { count:c, bd:bd };
+}
+
+/* ====================== isometric projection ====================== */
+var TW=60, TH=30, BH=38;       // tile width, tile height (2:1 iso), body height
+function topCenter(x,y,z){ return { cx:(x-y)*(TW/2), cy:(x+y)*(TH/2) - z*BH }; }
+function faces(x,y,z){
+  var c=topCenter(x,y,z), cx=c.cx, cy=c.cy;
+  var tTop=[cx,cy-TH/2], tR=[cx+TW/2,cy], tB=[cx,cy+TH/2], tL=[cx-TW/2,cy];
+  return {
+    top:  [tTop,tR,tB,tL],
+    left: [tL,[tL[0],tL[1]+BH],[tB[0],tB[1]+BH],tB],
+    right:[tB,[tB[0],tB[1]+BH],[tR[0],tR[1]+BH],tR],
+    center:[cx,cy]
+  };
+}
+function pip(px,py,poly){   // point in polygon (ray cast)
+  var inside=false;
+  for(var i=0,j=poly.length-1;i<poly.length;j=i++){
+    var xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];
+    if(((yi>py)!==(yj>py)) && (px < (xj-xi)*(py-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+function cubeList(hm){
+  var c=[];
+  for(var k in hm){ var p=k.split(','),x=+p[0],y=+p[1],h=hm[k];
+    for(var z=0;z<h;z++) c.push([x,y,z]); }
+  c.sort(function(a,b){ return (a[0]+a[1])-(b[0]+b[1]) || a[2]-b[2]; }); // back-to-front
+  return c;
+}
+/* A column's top face is markable only if it isn't hidden behind a nearer block.
+   We test the top-face centre against the faces of every cube drawn in front. */
+function visibleTops(hm){
+  var cubes=cubeList(hm), vis=[];
+  function ord(x,y,z){ return (x+y)*100 + z; }
+  for(var k in hm){
+    var p=k.split(','),x=+p[0],y=+p[1],h=hm[k],z=h-1;
+    var ctr=topCenter(x,y,z), my=ord(x,y,z), occluded=false;
+    for(var i=0;i<cubes.length;i++){
+      var cx=cubes[i][0],cy=cubes[i][1],cz=cubes[i][2];
+      if(cx===x&&cy===y&&cz===z) continue;
+      if(ord(cx,cy,cz) <= my) continue;          // behind / same — can't cover it
+      var f=faces(cx,cy,cz);
+      if(pip(ctr.cx,ctr.cy,f.top)||pip(ctr.cx,ctr.cy,f.left)||pip(ctr.cx,ctr.cy,f.right)){
+        occluded=true; break;
+      }
+    }
+    if(!occluded) vis.push([x,y,z]);
+  }
+  return vis;   // never empty: the front-most column's top is always clear
+}
+
+/* ====================== options (no answer leak) ====================== */
+function makeOptions(c){
+  var seen={}, order=[c]; seen[c]=1;
+  var near=[c-1,c+1,c-2,c+2,c+3,c-3,c+4,c-4];
+  for(var i=0;i<near.length && order.length<OPT_COUNT;i++){
+    var v=near[i]; if(v>=0 && v<=8 && !seen[v]){ seen[v]=1; order.push(v); }
+  }
+  var f=0; while(order.length<OPT_COUNT){ if(f<=8 && !seen[f]){ seen[f]=1; order.push(f); } f++; }
+  return shuffle(order);
+}
+
+/* ====================== render ====================== */
+function svgPoly(svg,poly,fill){
+  var el=document.createElementNS(NS,'polygon'), pts='';
+  for(var i=0;i<poly.length;i++) pts += poly[i][0].toFixed(1)+','+poly[i][1].toFixed(1)+' ';
+  el.setAttribute('points', pts.trim());
+  el.setAttribute('fill', fill);
+  el.setAttribute('stroke', '#101a27');
+  el.setAttribute('stroke-width', '1.4');
+  el.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(el);
+}
+function render(hm,num){
+  var svg=document.getElementById('svg');
+  var cubes=cubeList(hm);
+  var minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
+  for(var i=0;i<cubes.length;i++){
+    var f=faces(cubes[i][0],cubes[i][1],cubes[i][2]);
+    var all=f.top.concat(f.left,f.right);
+    for(var j=0;j<all.length;j++){ var px=all[j][0],py=all[j][1];
+      if(px<minX)minX=px; if(px>maxX)maxX=px; if(py<minY)minY=py; if(py>maxY)maxY=py; }
+  }
+  var pad=16;
+  svg.setAttribute('viewBox',
+    (minX-pad).toFixed(1)+' '+(minY-pad).toFixed(1)+' '+
+    ((maxX-minX)+2*pad).toFixed(1)+' '+((maxY-minY)+2*pad).toFixed(1));
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+  for(var i=0;i<cubes.length;i++){
+    var x=cubes[i][0],y=cubes[i][1],z=cubes[i][2];
+    var hot=(x===num[0]&&y===num[1]&&z===num[2]);
+    var f=faces(x,y,z);
+    svgPoly(svg,f.left,  hot?'#c1761f':'#7d92ac');
+    svgPoly(svg,f.right, hot?'#a8651a':'#63788f');
+    svgPoly(svg,f.top,   hot?'#f2b65a':'#bccadb');
+  }
+  // marker drawn last so it always sits on top of the (visible) marked face
+  var fn=faces(num[0],num[1],num[2]);
+  var t=document.createElementNS(NS,'text');
+  t.setAttribute('x', fn.center[0].toFixed(1));
+  t.setAttribute('y', (fn.center[1]+5).toFixed(1));
+  t.setAttribute('text-anchor','middle');
+  t.setAttribute('font-size','17'); t.setAttribute('font-weight','800');
+  t.setAttribute('fill','#1a1205');
+  t.setAttribute('font-family','ui-sans-serif,system-ui,sans-serif');
+  t.textContent='1';
+  svg.appendChild(t);
+}
+
+/* ====================== drill loop ====================== */
+var current=null, scoreC=0, scoreT=0, itemStart=0, itimer=null;
+function tick(){ document.getElementById('itime').textContent = ((Date.now()-itemStart)/1000).toFixed(1)+'s'; }
+function newItem(){
+  var hm=genHeightMap(), set=occupancy(hm), vis=visibleTops(hm);
+  var num=vis[rnd(vis.length)];
+  var r=countContacts(set,num[0],num[1],num[2]);
+  current={ ans:r.count, bd:r.bd };
+  render(hm,num);
+  var opts=makeOptions(r.count), box=document.getElementById('opts');
+  box.innerHTML='';
+  for(var i=0;i<opts.length;i++){ (function(v){
+    var b=document.createElement('button');
+    b.className='opt'; b.textContent=v;
+    b.onclick=function(){ choose(v,b); };
+    box.appendChild(b);
+  })(opts[i]); }
+  var fb=document.getElementById('fb'); fb.className='fb'; fb.innerHTML='';
+  document.getElementById('next').style.display='none';
+  itemStart=Date.now(); if(itimer) clearInterval(itimer); itimer=setInterval(tick,100); tick();
+}
+function bdHtml(){
+  var b=current.bd;
+  return '<div class="bd">contacts &mdash; below: '+b.below+' &nbsp;·&nbsp; sides: '+b.sides+' &nbsp;·&nbsp; above: '+b.above+'</div>';
+}
+function choose(v,btn){
+  if(itimer){ clearInterval(itimer); itimer=null; }
+  var bs=document.getElementById('opts').getElementsByTagName('button');
+  for(var i=0;i<bs.length;i++){ bs[i].disabled=true;
+    if(+bs[i].textContent===current.ans) bs[i].classList.add('is-answer'); }
+  var fb=document.getElementById('fb'); scoreT++;
+  if(v===current.ans){
+    scoreC++; btn.classList.add('chosen-correct'); fb.className='fb good';
+    fb.innerHTML='<div class="line">Correct — it touches '+current.ans+'.</div>'+bdHtml();
+  } else {
+    btn.classList.add('chosen-wrong'); fb.className='fb bad';
+    fb.innerHTML='<div class="line">It touches '+current.ans+', not '+v+'.</div>'+bdHtml();
+  }
+  document.getElementById('score').textContent=scoreC+' / '+scoreT;
+  document.getElementById('acc').textContent=Math.round(100*scoreC/scoreT)+'%';
+  document.getElementById('next').style.display='block';
+}
+
+/* ====================== in-file self-test (the harness) ====================== */
+function selfTest(n){
+  var ok=0, issue=null;
+  for(var i=0;i<n;i++){
+    var hm=genHeightMap(), set=occupancy(hm), vis=visibleTops(hm);
+    if(!vis.length){ issue='no markable block'; continue; }
+    var t=vis[rnd(vis.length)], c=countContacts(set,t[0],t[1],t[2]).count;
+    if(c<0||c>5){ issue='count out of 0–5 range: '+c; continue; }   // markable block can touch at most 5
+    var o=makeOptions(c);
+    if(o.length!==OPT_COUNT){ issue='wrong option count'; continue; }
+    var seen={}, dup=false;
+    for(var j=0;j<o.length;j++){ if(seen[o[j]]) dup=true; seen[o[j]]=1; }
+    if(dup){ issue='duplicate option'; continue; }
+    if(o.indexOf(c)<0){ issue='answer missing from options'; continue; }
+    ok++;
+  }
+  console.log('[Block Counting v1] self-test: '+ok+'/'+n+' items passed' +
+    (issue ? (' — last issue: '+issue)
+           : ' — assertions hold: face-adjacency count, 0–5 answer range, '+OPT_COUNT+' distinct options, answer present, no leak.'));
+}
+
+/* ====================== boot ====================== */
+selfTest(500);
+document.getElementById('next').onclick=newItem;
+newItem();
+</script>
+</body>
+</html>

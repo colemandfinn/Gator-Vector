@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>GatorVector — Block Counting tests</title>
+  <style>
+    body { font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; margin: 2rem; }
+    h1 { font-size: 1.1rem; }
+    .case { padding: 2px 0; }
+    .pass { color: #137333; }
+    .fail { color: #c5221f; font-weight: bold; }
+    #summary { margin-top: 1rem; font-weight: bold; }
+    #summary.ok { color: #137333; }
+    #summary.bad { color: #c5221f; }
+  </style>
+</head>
+<body>
+  <h1>Block Counting — tests</h1>
+  <div id="results"></div>
+  <div id="summary"></div>
+
+  <!-- Zero tooling: load the source files directly, then run assertions below. -->
+  <script src="src/blockCounting/generator.js"></script>
+  <script src="src/blockCounting/itemGenerator.js"></script>
+  <script src="src/blockCounting/drill.js"></script>
+  <script src="src/blockCounting/scoring.js"></script>
+  <script>
+    (function () {
+      var generateHeightMap = window.BlockCounting.generateHeightMap;
+      var occupancy = window.BlockCounting.occupancy;
+      var countContacts = window.BlockCounting.countContacts;
+      var generateItem = window.BlockCounting.generateItem;
+      var generateDrill = window.BlockCounting.generateDrill;
+      var nextItem = window.BlockCounting.nextItem;
+      var scoreDrill = window.BlockCounting.scoreDrill;
+
+      var results = document.getElementById("results");
+      var passed = 0, failed = 0;
+
+      function row(ok, text) {
+        passed += ok ? 1 : 0; failed += ok ? 0 : 1;
+        var el = document.createElement("div");
+        el.className = "case " + (ok ? "pass" : "fail");
+        el.textContent = (ok ? "PASS" : "FAIL") + " — " + text;
+        results.appendChild(el);
+      }
+
+      function check(description, actual, expected) {
+        row(actual === expected,
+          description + " (got " + actual + ", expected " + expected + ")");
+      }
+
+      function assert(description, ok) {
+        row(!!ok, description);
+      }
+
+      function heading(text) {
+        var el = document.createElement("h2");
+        el.style.cssText = "font-size:0.95rem;margin:1rem 0 0.25rem;";
+        el.textContent = text;
+        results.appendChild(el);
+      }
+
+      // Stable identity for an item — sorted height-map entries plus marked
+      // coordinate (mirrors drill.js's itemKey, recomputed here independently).
+      function itemKey(item) {
+        var entries = [];
+        for (var k in item.heightMap) {
+          if (item.heightMap.hasOwnProperty(k)) entries.push(k + ":" + item.heightMap[k]);
+        }
+        entries.sort();
+        return entries.join(";") + "|" + item.marked.join(",");
+      }
+
+      // Every invariant that must hold for EVERY generated item. The count is
+      // RECOMPUTED from the height-map (not trusted from the item) so a wrong
+      // correctIndex or a stale option list can't slip through.
+      function itemInvariants(item) {
+        var fails = [];
+        if (item.options.length !== 5) fails.push("not 5 options (" + item.options.length + ")");
+        if (new Set(item.options).size !== 5) fails.push("options not all unique");
+        for (var i = 1; i < item.options.length; i++) {
+          if (item.options[i - 1] >= item.options[i]) { fails.push("not ascending"); break; }
+        }
+        var set = occupancy(item.heightMap);
+        var count = countContacts(set, item.marked[0], item.marked[1], item.marked[2]).count;
+        if (count < 0 || count > 5) fails.push("count out of 0–5 (" + count + ")");
+        if (item.options.indexOf(count) === -1) fails.push("recomputed count missing from options");
+        if (item.options[item.correctIndex] !== count) fails.push("correctIndex does not point at the true count (leak)");
+        return fails;
+      }
+
+      // --- item generator -------------------------------------------------
+      heading("item generator");
+
+      var N = 500, firstFail = null, okCount = 0;
+      for (var t = 0; t < N; t++) {
+        var f = itemInvariants(generateItem());
+        if (f.length === 0) okCount++;
+        else if (!firstFail) firstFail = f.join("; ");
+      }
+      assert(okCount + "/" + N + " random items: count recomputes & in 0–5, " +
+        "5 unique ascending options, true count present at correctIndex (no leak)" +
+        (firstFail ? " — first failure: " + firstFail : ""), okCount === N);
+
+      // Spot-check one item explicitly so the proof is concrete and readable.
+      var item = generateItem();
+      var spotSet = occupancy(item.heightMap);
+      var spotCount = countContacts(spotSet, item.marked[0], item.marked[1], item.marked[2]).count;
+      check("item has exactly 5 options", item.options.length, 5);
+      assert("options all unique", new Set(item.options).size === 5);
+      assert("options sorted ascending",
+        item.options.every(function (v, i) { return i === 0 || item.options[i - 1] < v; }));
+      assert("recomputed contact count is in 0–5", spotCount >= 0 && spotCount <= 5);
+      assert("true count present among options", item.options.indexOf(spotCount) !== -1);
+      check("correctIndex points at the true count", item.options[item.correctIndex], spotCount);
+
+      // --- drill loop -----------------------------------------------------
+      heading("drill loop");
+
+      function isValidItem(item) {
+        return itemInvariants(item).length === 0;
+      }
+
+      // Run many drills so the "no back-to-back duplicate" rule is exercised
+      // across thousands of consecutive-item boundaries, not just one drill.
+      var DRILLS = 50, drillsOk = 0, drillFail = null;
+      for (var d = 0; d < DRILLS; d++) {
+        var drill = generateDrill(); // default itemCount 30
+        var problems = [];
+        if (drill.items.length !== 30) problems.push("count " + drill.items.length);
+        for (var i = 1; i < drill.items.length; i++) {
+          if (itemKey(drill.items[i - 1]) === itemKey(drill.items[i])) {
+            problems.push("back-to-back dup (heightMap, marked) at " + i);
+            break;
+          }
+        }
+        for (var j = 0; j < drill.items.length; j++) {
+          if (!isValidItem(drill.items[j])) { problems.push("bad item at " + j); break; }
+        }
+        if (problems.length === 0) drillsOk++;
+        else if (!drillFail) drillFail = problems.join("; ");
+      }
+      assert(drillsOk + "/" + DRILLS + " drills: 30 items, no back-to-back dup " +
+        "(heightMap, marked), all items valid" +
+        (drillFail ? " — first failure: " + drillFail : ""), drillsOk === DRILLS);
+
+      // Concrete single-drill spot checks.
+      var oneDrill = generateDrill();
+      check("drill produces exactly 30 items", oneDrill.items.length, 30);
+      var noDup = true;
+      for (var k = 1; k < oneDrill.items.length; k++) {
+        if (itemKey(oneDrill.items[k - 1]) === itemKey(oneDrill.items[k])) { noDup = false; break; }
+      }
+      assert("no two consecutive items share (heightMap, marked)", noDup);
+      assert("every drill item is valid (recomputed count at correctIndex)",
+        oneDrill.items.every(isValidItem));
+
+      // nextItem (used by open-ended practice mode): each draw differs from the
+      // previous (heightMap, marked) and is itself a valid item.
+      var prevI = null, seqOk = true, seqFail = null;
+      for (var n = 0; n < 500; n++) {
+        var it = nextItem(prevI);
+        if (prevI && itemKey(it) === itemKey(prevI)) { seqOk = false; seqFail = "repeat at " + n; break; }
+        if (!isValidItem(it)) { seqOk = false; seqFail = "invalid at " + n; break; }
+        prevI = it;
+      }
+      assert("nextItem: 500 consecutive draws never repeat prev (heightMap, marked), all valid" +
+        (seqFail ? " — " + seqFail : ""), seqOk);
+
+      // --- scoring --------------------------------------------------------
+      heading("scoring");
+
+      // Known mix: a fabricated item list with explicit correctIndex values and
+      // a hand-picked answer array (answer = chosen option index, null = blank).
+      var scoringItems = [
+        { marked: [0, 0, 0], correctIndex: 0 }, // answer 0 -> correct
+        { marked: [1, 0, 0], correctIndex: 2 }, // answer 2 -> correct
+        { marked: [2, 0, 0], correctIndex: 1 }, // answer 3 -> WRONG
+        { marked: [3, 0, 0], correctIndex: 4 }, // answer null -> WRONG (unanswered)
+        { marked: [4, 0, 0], correctIndex: 3 }, // answer 3 -> correct
+      ];
+      var answers = [0, 2, 3, null, 3];
+      check("scoreDrill counts a known right/wrong mix (3 of 5)",
+        scoreDrill(scoringItems, answers), 3);
+      check("scoreDrill all-correct", scoreDrill(scoringItems, [0, 2, 1, 4, 3]), 5);
+      check("scoreDrill all-blank (no guessing penalty, just 0)",
+        scoreDrill(scoringItems, [null, null, null, null, null]), 0);
+      check("scoreDrill with missing answers array treats all as wrong",
+        scoreDrill(scoringItems, []), 0);
+
+      var summary = document.getElementById("summary");
+      summary.className = failed === 0 ? "ok" : "bad";
+      summary.textContent =
+        failed === 0
+          ? "ALL PASS — " + passed + "/" + (passed + failed)
+          : failed + " FAILED — " + passed + "/" + (passed + failed) + " passed";
+    })();
+  </script>
+</body>
+</html>

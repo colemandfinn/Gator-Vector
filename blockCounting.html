@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GatorVector — Block Counting</title>
+  <style>
+    :root {
+      --ink: #1a1a1a;
+      --muted: #5f6368;
+      --line: #d0d0d0;
+      --accent: #0b6e4f;
+      --bad: #c5221f;
+      --bg: #fafafa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 1.25rem; }
+    h1 { font-size: 1.25rem; margin: 0 0 0.25rem; }
+    .tagline { color: var(--muted); margin: 0 0 1.25rem; font-size: 0.9rem; }
+    .homelink {
+      display: inline-block; color: var(--muted); text-decoration: none;
+      font-size: 0.85rem; margin-bottom: 0.5rem;
+    }
+    .homelink:hover { color: var(--accent); text-decoration: underline; }
+    .hidden { display: none !important; }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+    }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      font-size: 1.05rem;
+      padding: 0.75rem 1.5rem;
+    }
+    button:hover { filter: brightness(0.97); }
+    .linklike {
+      border: none; background: none; color: var(--muted);
+      text-decoration: underline; padding: 0.25rem; font-size: 0.85rem;
+    }
+
+    /* --- START --- */
+    .best {
+      margin: 1rem 0;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      display: inline-block;
+    }
+    .best strong { color: var(--accent); }
+
+    /* --- DRILL header --- */
+    .drillbar {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+    }
+    .timer {
+      font-variant-numeric: tabular-nums;
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .timer.low { color: var(--bad); }
+    .progress { color: var(--muted); font-size: 0.95rem; }
+
+    .question {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin: 0.25rem 0 0.5rem;
+      line-height: 1.4;
+    }
+    .question .mark { color: var(--accent); }
+    .options { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0 1rem; }
+    .options button {
+      font-variant-numeric: tabular-nums;
+      font-size: 1.25rem;
+      font-weight: 700;
+      min-width: 3.4rem;
+      padding: 0.7rem 1rem;
+    }
+
+    /* --- STACK STAGE ---
+       renderStack auto-fits the figure via the SVG viewBox, so there is NO
+       grid-fit logic here (unlike Table Reading) — the stage just frames the svg
+       and the viewBox does the sizing. */
+    .stage {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 1rem;
+      min-height: 240px;
+    }
+    .stage svg { width: 100%; max-width: 380px; height: auto; display: block; }
+
+    /* --- RESULTS --- */
+    .score { font-size: 2rem; font-weight: 800; margin: 0.5rem 0 0.25rem; }
+    .score .of { color: var(--muted); font-weight: 600; font-size: 1.1rem; }
+    .meta { color: var(--muted); margin-bottom: 1rem; }
+    table.review { border-collapse: collapse; width: 100%; max-width: 480px; background: #fff; }
+    table.review th, table.review td {
+      border: 1px solid var(--line); padding: 0.4rem 0.6rem; text-align: left;
+      font-variant-numeric: tabular-nums; font-size: 0.95rem;
+    }
+    table.review th { background: #f0f0f0; }
+    table.review td.correct { color: var(--accent); font-weight: 600; }
+    table.review td.chosen { color: var(--bad); }
+    .allright { color: var(--accent); font-weight: 600; }
+
+    /* --- START mode picker --- */
+    .modepick { display: flex; gap: 0.75rem; margin: 0.75rem 0; flex-wrap: wrap; }
+    button.primary.alt { background: #fff; color: var(--accent); }
+    .modehint { color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
+
+    /* --- PRACTICE --- */
+    .tally {
+      font-weight: 700; font-size: 1.15rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .feedback {
+      border: 1px solid var(--line); border-radius: 8px; background: #fff;
+      padding: 0.6rem 0.9rem; font-size: 1.05rem; max-width: 640px;
+      margin: 0.25rem 0 0.75rem;
+    }
+    .feedback.right { border-color: var(--accent); background: #eef7f2; }
+    .feedback.wrong { border-color: var(--bad); background: #fdeeee; }
+    .feedback .verdict { font-weight: 700; }
+    .feedback.right .verdict { color: var(--accent); }
+    .feedback.wrong .verdict { color: var(--bad); }
+    .feedback .why { color: var(--muted); margin-top: 0.25rem; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+    .options button.opt-correct {
+      border-color: var(--accent); background: #eef7f2; color: var(--accent); font-weight: 700;
+    }
+    .options button.opt-wrong {
+      border-color: var(--bad); background: #fdeeee; color: var(--bad);
+    }
+    .options button:disabled { cursor: default; }
+
+    /* --- ONE-VIEWPORT LAYOUT (drill/practice only) ---
+       While a Timed Drill or Practice screen is active, pin everything to a
+       single viewport so the answer options stay co-visible with the figure —
+       matching real test conditions, where stack and answers share one screen.
+       Scoped via :has() so start/results pages scroll normally. Presentational. */
+    body:has(#screen-drill:not(.hidden)),
+    body:has(#screen-practice:not(.hidden)) {
+      overflow: hidden;
+    }
+    body:has(#screen-drill:not(.hidden)) .wrap,
+    body:has(#screen-practice:not(.hidden)) .wrap {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+      max-width: none;
+    }
+    body:has(#screen-drill:not(.hidden)) .homelink,
+    body:has(#screen-drill:not(.hidden)) h1,
+    body:has(#screen-drill:not(.hidden)) .tagline,
+    body:has(#screen-practice:not(.hidden)) .homelink,
+    body:has(#screen-practice:not(.hidden)) h1,
+    body:has(#screen-practice:not(.hidden)) .tagline {
+      display: none;
+    }
+    #screen-drill:not(.hidden),
+    #screen-practice:not(.hidden) {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    #screen-drill:not(.hidden) .drillbar,
+    #screen-drill:not(.hidden) .question,
+    #screen-drill:not(.hidden) .options,
+    #screen-practice:not(.hidden) .drillbar,
+    #screen-practice:not(.hidden) .question,
+    #screen-practice:not(.hidden) .options,
+    #screen-practice:not(.hidden) .feedback,
+    #screen-practice:not(.hidden) #p-next-wrap {
+      flex: 0 0 auto;
+    }
+    /* Two-column body: controls on the left, the stack stage filling the rest. */
+    #screen-drill:not(.hidden) .drill-main,
+    #screen-practice:not(.hidden) .drill-main {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      gap: 1.5rem;
+      justify-content: flex-start;
+    }
+    .drill-controls { flex: 0 0 320px; width: 320px; }
+    .drill-controls .options { flex-direction: column; } /* stack answer buttons */
+    .drill-main .stage {
+      flex: 1 1 auto;
+      min-height: 0;
+      align-self: stretch;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="homelink" href="index.html">← All drills</a>
+    <h1>Block Counting</h1>
+    <p class="tagline">AFOQT spatial drill — count how many blocks the marked block touches. Unofficial study aid.</p>
+
+    <!-- ============ START ============ -->
+    <section id="screen-start">
+      <p>A contact is a shared <strong>face</strong> — above, below, or any side. A diagonal or edge-only touch does not count.</p>
+      <div id="best" class="best hidden"></div>
+      <div class="modepick">
+        <button id="btn-start" class="primary">Timed Drill</button>
+        <button id="btn-practice" class="primary alt">Practice</button>
+      </div>
+      <p class="modehint">
+        <strong>Timed Drill:</strong> 30 items, 4:30 clock, no feedback — real test conditions.<br>
+        <strong>Practice:</strong> untimed, immediate feedback showing the contact breakdown; go as long as you like.
+      </p>
+    </section>
+
+    <!-- ============ DRILL ============ -->
+    <section id="screen-drill" class="hidden">
+      <div class="drillbar">
+        <div class="timer" id="timer">4:30</div>
+        <div class="progress" id="progress">Item 1 of 30</div>
+        <button class="linklike" id="btn-end">End drill early</button>
+      </div>
+      <div class="drill-main">
+        <div class="drill-controls">
+          <div class="question">
+            How many other blocks does the <span class="mark">marked block (1)</span> touch?
+          </div>
+          <div class="options" id="options"></div>
+        </div>
+        <div class="stage">
+          <svg id="svg" xmlns="http://www.w3.org/2000/svg" aria-label="Isometric block stack with one marked block"></svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PRACTICE ============ -->
+    <section id="screen-practice" class="hidden">
+      <div class="drillbar">
+        <div class="tally" id="p-tally">0 correct of 0</div>
+        <button class="linklike" id="btn-end-practice">End practice</button>
+      </div>
+      <div class="drill-main">
+        <div class="drill-controls">
+          <div class="question">
+            How many other blocks does the <span class="mark">marked block (1)</span> touch?
+          </div>
+          <div class="options" id="p-options"></div>
+          <div class="feedback hidden" id="p-feedback"></div>
+          <div id="p-next-wrap" class="hidden" style="margin: 0 0 0.75rem;">
+            <button id="btn-next" class="primary">Next →</button>
+          </div>
+        </div>
+        <div class="stage">
+          <svg id="p-svg" xmlns="http://www.w3.org/2000/svg" aria-label="Isometric block stack with one marked block"></svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ RESULTS ============ -->
+    <section id="screen-results" class="hidden">
+      <div class="score"><span id="result-correct">0</span> <span class="of">of <span id="result-total">30</span> correct</span></div>
+      <div class="meta" id="result-meta"></div>
+      <div id="review"></div>
+      <div style="margin-top:1.25rem;">
+        <button id="btn-again" class="primary">New Drill</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- Engine (already built + tested) — this page only orchestrates it.
+       MUST stay in lockstep with blockCountingTest.html's script list (same files,
+       same order) plus renderer.js — the test page and the drill page have to load
+       the same logic, or a bug hides in the gap between them. -->
+  <script src="src/blockCounting/generator.js"></script>
+  <script src="src/blockCounting/itemGenerator.js"></script>
+  <script src="src/blockCounting/drill.js"></script>
+  <script src="src/blockCounting/scoring.js"></script>
+  <script src="src/blockCounting/renderer.js"></script>
+  <script>
+    (function () {
+      var BC = window.BlockCounting;
+      var TIME_LIMIT = 270;          // spec sessionTime (4:30)
+      var ITEM_COUNT = 30;           // spec itemCount
+      var BEST_KEY = "gatorvector.blockCounting.best.v1";
+
+      // --- tiny DOM helpers ---
+      var $ = function (id) { return document.getElementById(id); };
+      function show(name) {
+        ["start", "drill", "practice", "results"].forEach(function (s) {
+          $("screen-" + s).classList.toggle("hidden", s !== name);
+        });
+      }
+      function clock(sec) {
+        var m = Math.floor(sec / 60);
+        var s = sec % 60;
+        return m + ":" + (s < 10 ? "0" : "") + s;
+      }
+      // The true contact count + breakdown for an item, recomputed from its
+      // height-map (single source of truth — never trust a cached number).
+      function contacts(item) {
+        var set = BC.occupancy(item.heightMap);
+        return BC.countContacts(set, item.marked[0], item.marked[1], item.marked[2]);
+      }
+
+      // --- session state ---
+      var drill, current, answers, timeLeft, timerId;
+
+      // --- START ---
+      function renderBest() {
+        var raw = null;
+        try { raw = localStorage.getItem(BEST_KEY); } catch (e) {}
+        var box = $("best");
+        if (!raw) { box.classList.add("hidden"); return; }
+        var best;
+        try { best = JSON.parse(raw); } catch (e) { box.classList.add("hidden"); return; }
+        box.classList.remove("hidden");
+        box.innerHTML = "Best score: <strong>" + best.score + " / " + best.total +
+          "</strong> &nbsp;<span style='color:var(--muted)'>(" + best.date + ")</span>";
+      }
+
+      // --- DRILL ---
+      function startDrill() {
+        drill = BC.generateDrill({ itemCount: ITEM_COUNT });
+        answers = new Array(drill.items.length);
+        current = 0;
+        timeLeft = TIME_LIMIT;
+
+        renderQuestion();
+        updateTimer();
+        timerId = setInterval(tick, 1000);
+        show("drill");
+      }
+
+      function tick() {
+        timeLeft--;
+        if (timeLeft <= 0) { timeLeft = 0; updateTimer(); endDrill(); return; }
+        updateTimer();
+      }
+
+      function updateTimer() {
+        var t = $("timer");
+        t.textContent = clock(timeLeft);
+        t.classList.toggle("low", timeLeft <= 30);
+      }
+
+      function renderQuestion() {
+        var item = drill.items[current];
+        $("progress").textContent = "Item " + (current + 1) + " of " + drill.items.length;
+        BC.renderStack($("svg"), item.heightMap, item.marked);
+
+        var box = $("options");
+        box.innerHTML = "";
+        item.options.forEach(function (value, optionIndex) {
+          var b = document.createElement("button");
+          b.textContent = value;
+          // TEST CONDITIONS: record the answer and advance — NO right/wrong shown.
+          b.addEventListener("click", function () { answer(optionIndex); });
+          box.appendChild(b);
+        });
+      }
+
+      function answer(optionIndex) {
+        answers[current] = optionIndex;
+        current++;
+        if (current >= drill.items.length) { endDrill(); return; }
+        renderQuestion();
+      }
+
+      // --- RESULTS ---
+      function endDrill() {
+        clearInterval(timerId);
+        timerId = null;
+        var timeUsed = TIME_LIMIT - timeLeft;
+        var total = drill.items.length;
+        var score = BC.scoreDrill(drill.items, answers);
+
+        $("result-correct").textContent = score;
+        $("result-total").textContent = total;
+        var answered = answers.filter(function (a) { return a !== undefined; }).length;
+        $("result-meta").textContent =
+          "Time used: " + clock(timeUsed) + " of " + clock(TIME_LIMIT) +
+          " · Answered " + answered + " of " + total;
+
+        renderReview(BC.reviewMissed(drill.items, answers));
+        saveBest(score, total, timeUsed);
+        show("results");
+      }
+
+      function renderReview(missed) {
+        var box = $("review");
+        if (missed.length === 0) {
+          box.innerHTML = "<p class='allright'>No misses — every answered item correct.</p>";
+          return;
+        }
+        var html = ["<p>Missed items (" + missed.length + "):</p>",
+          "<table class='review'><thead><tr>",
+          "<th>#</th><th>You counted</th><th>Actual touches</th>",
+          "</tr></thead><tbody>"];
+        missed.forEach(function (m) {
+          html.push("<tr><td>" + m.number + "</td>" +
+            "<td class='chosen'>" + (m.chosen === null ? "—" : m.chosen) + "</td>" +
+            "<td class='correct'>" + m.correct + "</td></tr>");
+        });
+        html.push("</tbody></table>");
+        box.innerHTML = html.join("");
+      }
+
+      function saveBest(score, total, timeUsed) {
+        var prev = null;
+        try { prev = JSON.parse(localStorage.getItem(BEST_KEY)); } catch (e) {}
+        if (prev && prev.score >= score) return; // keep the better run
+        var record = {
+          score: score, total: total, timeUsed: timeUsed,
+          date: new Date().toISOString().slice(0, 10),
+        };
+        try { localStorage.setItem(BEST_KEY, JSON.stringify(record)); } catch (e) {}
+      }
+
+      // --- PRACTICE (untimed, immediate feedback, open-ended) ---
+      var pItem, pCount, pCorrect;
+
+      function startPractice() {
+        pCount = 0;
+        pCorrect = 0;
+        updateTally();
+        nextPractice(null);
+        show("practice");
+      }
+
+      function updateTally() {
+        $("p-tally").textContent = pCorrect + " correct of " + pCount;
+      }
+
+      function nextPractice(prevItem) {
+        // Reuse the engine's back-to-back rule so practice never repeats the
+        // previous (heightMap, marked) either.
+        pItem = BC.nextItem(prevItem);
+        BC.renderStack($("p-svg"), pItem.heightMap, pItem.marked);
+        $("p-feedback").classList.add("hidden");
+        $("p-next-wrap").classList.add("hidden");
+
+        var box = $("p-options");
+        box.innerHTML = "";
+        pItem.options.forEach(function (value, optionIndex) {
+          var b = document.createElement("button");
+          b.textContent = value;
+          b.addEventListener("click", function () { answerPractice(optionIndex); });
+          box.appendChild(b);
+        });
+      }
+
+      function answerPractice(optionIndex) {
+        var correctIndex = pItem.correctIndex;
+        var isRight = optionIndex === correctIndex;
+        pCount++;
+        if (isRight) pCorrect++;
+        updateTally();
+
+        // Lock the options and mark the correct one (and the wrong pick, if any).
+        var btns = $("p-options").children;
+        for (var i = 0; i < btns.length; i++) {
+          btns[i].disabled = true;
+          if (i === correctIndex) btns[i].classList.add("opt-correct");
+          else if (i === optionIndex) btns[i].classList.add("opt-wrong");
+        }
+
+        // Immediate feedback — the count plus the contact breakdown that proves
+        // it (below / sides / above, straight from BlockCounting.countContacts).
+        var r = contacts(pItem);
+        var correctValue = pItem.options[correctIndex];
+        var fb = $("p-feedback");
+        fb.className = "feedback " + (isRight ? "right" : "wrong");
+        var lead = isRight
+          ? "<span class='verdict'>Correct.</span> It touches <strong>" + correctValue + "</strong>."
+          : "<span class='verdict'>Not quite.</span> You counted " + pItem.options[optionIndex] +
+            "; it touches <strong>" + correctValue + "</strong>.";
+        fb.innerHTML = lead +
+          "<div class='why'>contacts — below: " + r.breakdown.below +
+          " · sides: " + r.breakdown.sides +
+          " · above: " + r.breakdown.above + "</div>";
+
+        $("p-next-wrap").classList.remove("hidden");
+      }
+
+      // --- wiring ---
+      $("btn-start").addEventListener("click", startDrill);
+      $("btn-practice").addEventListener("click", startPractice);
+      $("btn-again").addEventListener("click", function () { renderBest(); startDrill(); });
+      $("btn-end").addEventListener("click", endDrill);
+      $("btn-next").addEventListener("click", function () { nextPractice(pItem); });
+      $("btn-end-practice").addEventListener("click", function () { renderBest(); show("start"); });
+
+      renderBest();
+      show("start");
+    })();
+  </script>
+</body>
+</html>

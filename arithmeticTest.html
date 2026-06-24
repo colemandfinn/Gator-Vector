@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>GatorVector — Arithmetic Reasoning tests</title>
+  <style>
+    body { font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; margin: 2rem; }
+    h1 { font-size: 1.1rem; }
+    h2 { font-size: 0.95rem; margin: 1rem 0 0.25rem; }
+    .case { padding: 2px 0; }
+    .pass { color: #137333; }
+    .fail { color: #c5221f; font-weight: bold; }
+    .note { color: #5f6368; }
+    #summary { margin-top: 1rem; font-weight: bold; }
+    #summary.ok { color: #137333; }
+    #summary.bad { color: #c5221f; }
+  </style>
+</head>
+<body>
+  <h1>Arithmetic Reasoning — tests (slice 1: clean-answer guard + rate/time/distance cartridge + AR engine)</h1>
+  <div id="results"></div>
+  <div id="summary"></div>
+
+  <!-- Zero tooling: load the source files directly, then run assertions below.
+       AR's OWN copied engine + cartridge (spec §3). -->
+  <script src="src/arithmeticReasoning/cleanAnswer.js"></script>
+  <script src="src/arithmeticReasoning/rateTimeDistance.js"></script>
+  <script src="src/arithmeticReasoning/engine.js"></script>
+  <script src="src/arithmeticReasoning/registerCartridges.js"></script>
+  <!-- Math Knowledge engine too — loaded ONLY so the registry-isolation group can
+       prove the two engines are independent (it does NOT touch MK source). -->
+  <script src="src/mathKnowledge/cleanAnswer.js"></script>
+  <script src="src/mathKnowledge/linearEquation.js"></script>
+  <script src="src/mathKnowledge/area.js"></script>
+  <script src="src/mathKnowledge/exponents.js"></script>
+  <script src="src/mathKnowledge/engine.js"></script>
+  <script src="src/mathKnowledge/registerCartridges.js"></script>
+  <script>
+    (function () {
+      var AR = window.ArithmeticReasoning;
+      var clean = AR.cleanAnswer;
+      var engine = AR.engine;
+
+      // Item assembly lives in the engine (spec §3). The cartridge groups below
+      // call `.buildItem(difficulty, opts)`, routed through engine.buildItem via a
+      // thin alias that re-attaches the cartridge's display fields (r/t/d/form/
+      // noun) those groups reference — this genuinely exercises engine assembly.
+      function withEngineBuild(cart) {
+        var o = Object.create(cart);
+        o.buildItem = function (difficulty, opts) {
+          var it = engine.buildItem(cart, difficulty, opts);
+          it.r = it.problem.r;
+          it.t = it.problem.t;
+          it.d = it.problem.d;
+          it.form = it.problem.form;
+          it.noun = it.problem.noun;
+          return it;
+        };
+        return o;
+      }
+      var rtd = withEngineBuild(AR.rateTimeDistance);
+
+      var results = document.getElementById("results");
+      var passed = 0, failed = 0;
+
+      function row(ok, text) {
+        passed += ok ? 1 : 0; failed += ok ? 0 : 1;
+        var el = document.createElement("div");
+        el.className = "case " + (ok ? "pass" : "fail");
+        el.textContent = (ok ? "PASS" : "FAIL") + " — " + text;
+        results.appendChild(el);
+      }
+      function check(description, actual, expected) {
+        row(actual === expected,
+          description + " (got " + actual + ", expected " + expected + ")");
+      }
+      function assert(description, ok) { row(!!ok, description); }
+      function heading(text) {
+        var el = document.createElement("h2");
+        el.textContent = text;
+        results.appendChild(el);
+      }
+      function note(text) {
+        var el = document.createElement("div");
+        el.className = "case note";
+        el.textContent = text;
+        results.appendChild(el);
+      }
+
+      // Seeded PRNG (mulberry32) so randomized tests are deterministic — no flaky
+      // failures on the cartridge/engine sweeps. Same generator MK's tests use.
+      function mulberry32(seed) {
+        return function () {
+          seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+          var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      var LEVELS = ["easy", "medium", "hard"];
+      var FORMS = ["speed", "distance", "time"];
+
+      // The variable a given form asks for: speed→r, distance→d, time→t.
+      function expectedAnswer(p) {
+        return p.form === "speed" ? p.r : p.form === "distance" ? p.d : p.t;
+      }
+      // The two quantities a form GIVES (and therefore may show in the prompt).
+      function givensFor(p) {
+        return p.form === "speed" ? [p.d, p.t]
+             : p.form === "distance" ? [p.r, p.t]
+             : [p.d, p.r];
+      }
+
+      // ====================================================================
+      //  CLEAN-ANSWER GUARD (§4.2) — what "clean" means + the d=r×t identity
+      // ====================================================================
+      heading("clean-answer guard — isCleanInteger (§4.2)");
+      check("isCleanInteger(7) true", clean.isCleanInteger(7), true);
+      check("isCleanInteger(-3) true", clean.isCleanInteger(-3), true);
+      check("isCleanInteger(0) true", clean.isCleanInteger(0), true);
+      check("isCleanInteger(2.5) false", clean.isCleanInteger(2.5), false);
+      check("isCleanInteger(NaN) false", clean.isCleanInteger(NaN), false);
+      check("isCleanInteger(Infinity) false", clean.isCleanInteger(Infinity), false);
+      check("isCleanInteger(-Infinity) false", clean.isCleanInteger(-Infinity), false);
+      check("isCleanInteger('5') false (non-number)", clean.isCleanInteger("5"), false);
+      check("isCleanInteger(null) false", clean.isCleanInteger(null), false);
+      check("isCleanInteger(undefined) false", clean.isCleanInteger(undefined), false);
+
+      heading("clean-answer guard — d=r×t round-trip identities (§6)");
+      check("solveDistance(60,2) === 120", clean.solveDistance(60, 2), 120);
+      check("solveSpeed(120,2) === 60", clean.solveSpeed(120, 2), 60);
+      check("solveTime(120,60) === 2", clean.solveTime(120, 60), 2);
+      // Exhaustive over the v1 parameter space (and a bit beyond): for integer
+      // r,t with d=r*t, every recovery is exact.
+      var rtOk = 0, rtTotal = 0, rtFail = null;
+      for (var rr = 30; rr <= 90; rr++) {
+        for (var tt = 2; tt <= 12; tt++) {
+          rtTotal++;
+          var dd = clean.solveDistance(rr, tt);
+          if (dd === rr * tt && clean.solveSpeed(dd, tt) === rr && clean.solveTime(dd, rr) === tt) rtOk++;
+          else if (!rtFail) rtFail = "r=" + rr + " t=" + tt + " d=" + dd;
+        }
+      }
+      assert(rtOk + "/" + rtTotal + " (r,t) pairs: solveDistance/Speed/Time recover r,t,d exactly" +
+        (rtFail ? " — first failure: " + rtFail : ""), rtOk === rtTotal);
+
+      heading("clean-answer guard — isExactlyDivisible (incl. den=0 → false)");
+      check("isExactlyDivisible(120,60) true", clean.isExactlyDivisible(120, 60), true);
+      check("isExactlyDivisible(120,7) false", clean.isExactlyDivisible(120, 7), false);
+      check("isExactlyDivisible(120,0) false (den=0)", clean.isExactlyDivisible(120, 0), false);
+      check("isExactlyDivisible(0,5) true (0 is divisible)", clean.isExactlyDivisible(0, 5), true);
+      // Sweep: true exactly when den != 0 and num % den === 0.
+      var divOk = 0, divTotal = 0, divFail = null;
+      for (var nn = 0; nn <= 60; nn++) {
+        for (var de = -8; de <= 60; de++) {
+          divTotal++;
+          var exp = (de !== 0 && nn % de === 0);
+          if (clean.isExactlyDivisible(nn, de) === exp) divOk++;
+          else if (!divFail) divFail = "num=" + nn + " den=" + de;
+        }
+      }
+      assert(divOk + "/" + divTotal + " (num,den) pairs: isExactlyDivisible matches den!==0 && num%den===0" +
+        (divFail ? " — first failure: " + divFail : ""), divOk === divTotal);
+
+      // ====================================================================
+      //  RATE / TIME / DISTANCE CARTRIDGE (§6) — across forms & tiers
+      // ====================================================================
+
+      // --- correct answer is always a clean integer; d=r*t; answer = form var --
+      heading("RTD — correct answer clean integer, d=r×t, answer matches form (§4.2/§6)");
+      var rngClean = mulberry32(20260623);
+      var RCN = 6000, rcOk = 0, rcFail = null;
+      var formSeen = { speed: 0, distance: 0, time: 0 };
+      for (var i = 0; i < RCN; i++) {
+        var p = rtd.generate(LEVELS[i % 3], { rng: rngClean }); // form chosen by rng
+        formSeen[p.form]++;
+        var probs = [];
+        if (!clean.isCleanInteger(p.answer)) probs.push("answer not clean int: " + p.answer);
+        if (p.d !== p.r * p.t) probs.push("d != r*t");
+        if (p.answer !== expectedAnswer(p)) probs.push("answer != form variable (" + p.form + ")");
+        if (probs.length === 0) rcOk++;
+        else if (!rcFail) rcFail = p.form + " " + p.difficulty + ": " + probs.join("; ") +
+          "  [r=" + p.r + " t=" + p.t + " d=" + p.d + " ans=" + p.answer + "]";
+      }
+      assert(rcOk + "/" + RCN + " items: answer is a clean integer, d=r×t, answer = form variable" +
+        (rcFail ? " — first failure: " + rcFail : ""), rcOk === RCN);
+      note("form coverage (rng-chosen): " + JSON.stringify(formSeen));
+
+      // --- all five options clean integers (§4.2) -------------------------
+      heading("RTD — all five options clean integers (§4.2)");
+      var rngOpt = mulberry32(11235813);
+      var RON = 6000, roOk = 0, roFail = null;
+      for (var j = 0; j < RON; j++) {
+        var oit = rtd.buildItem(LEVELS[j % 3], { rng: rngOpt });
+        var ugly = oit.options.filter(function (v) { return !clean.isCleanInteger(v); });
+        if (ugly.length === 0) roOk++;
+        else if (!roFail) roFail = oit.form + ": ugly " + ugly.join(",") + " [" + oit.options.join(",") + "]";
+      }
+      assert(roOk + "/" + RON + " items: all 5 options are clean integers" +
+        (roFail ? " — first failure: " + roFail : ""), roOk === RON);
+
+      // --- distractors: count, uniqueness, full 5-distinct set, >=2 real ----
+      // Forms forced so each is shown to clear the §4.4 floor of 2 real patterns.
+      heading("RTD — 4 distinct distractors, 5-distinct option set, >=2 real patterns (§4.4)");
+      var rngDist = mulberry32(95141213);
+      var RDN = 6000, rdOk = 0, rdFail = null;
+      var formMin = { speed: 99, distance: 99, time: 99 };
+      for (var k = 0; k < RDN; k++) {
+        var form = FORMS[k % 3];
+        var dit = rtd.buildItem(LEVELS[k % 3], { rng: rngDist, form: form });
+        var probs2 = [];
+        if (dit.options.length !== 5) probs2.push("not 5 options");
+        if (new Set(dit.options).size !== 5) probs2.push("5-option set not all distinct");
+        if (dit.options[dit.correctIndex] !== dit.answer) probs2.push("correctIndex wrong");
+        var ds = dit.optionMeta.filter(function (o) { return !o.correct; });
+        if (ds.length !== 4) probs2.push("not exactly 4 distractors");
+        // every distractor a clean integer, distinct from the answer
+        var distVals = ds.map(function (o) { return o.value; });
+        if (new Set(distVals).size !== 4) probs2.push("distractors not all distinct from each other");
+        for (var z = 0; z < ds.length; z++) {
+          if (!clean.isCleanInteger(ds[z].value)) { probs2.push("unclean distractor " + ds[z].value); break; }
+          if (ds[z].value === dit.answer) { probs2.push("distractor equals answer"); break; }
+        }
+        var errCount = ds.filter(function (o) { return o.kind === "error"; }).length;
+        if (errCount < 2) probs2.push("only " + errCount + " real error patterns");
+        if (errCount < formMin[form]) formMin[form] = errCount;
+        if (probs2.length === 0) rdOk++;
+        else if (!rdFail) rdFail = form + ": " + probs2.join("; ") + " [ans " + dit.answer + " -> " + dit.options.join(",") + "]";
+      }
+      assert(rdOk + "/" + RDN + " items: 5 distinct options, exactly 4 distractors (clean, ≠answer), >=2 real patterns" +
+        (rdFail ? " — first failure: " + rdFail : ""), rdOk === RDN);
+      assert("every form clears the floor (min real patterns — speed:" + formMin.speed +
+        " distance:" + formMin.distance + " time:" + formMin.time + ", floor 2)",
+        formMin.speed >= 2 && formMin.distance >= 2 && formMin.time >= 2);
+
+      // --- the prompt never leaks the asked quantity (§6) -----------------
+      // The givens shown in the prompt must be exactly the two non-answer
+      // quantities; the answer value is never stated. Whole-number tokens are
+      // compared so "150" containing "50" can't cause a false alarm.
+      heading("RTD — prompt never states the asked quantity (no answer leak)");
+      var rngLeak = mulberry32(80706050);
+      var RLN = 6000, rlOk = 0, rlFail = null;
+      for (var L = 0; L < RLN; L++) {
+        var lp = rtd.generate(LEVELS[L % 3], { rng: rngLeak });
+        var nums = (lp.prompt.match(/\d+/g) || []).map(Number);
+        var givens = givensFor(lp);
+        var leaked = nums.indexOf(lp.answer) !== -1;
+        var givensPresent = givens.every(function (g) { return nums.indexOf(g) !== -1; });
+        if (!leaked && givensPresent) rlOk++;
+        else if (!rlFail) rlFail = lp.form + ": ans " + lp.answer + " givens " + givens.join(",") +
+          " prompt nums " + nums.join(",") + "  [" + lp.prompt + "]";
+      }
+      assert(rlOk + "/" + RLN + " items: answer absent from prompt, both givens present" +
+        (rlFail ? " — first failure: " + rlFail : ""), rlOk === RLN);
+
+      // --- determinism: same seed -> identical item; forced cases documented --
+      heading("RTD — determinism & forced cases (§5.2 / §6)");
+      var d1 = rtd.buildItem("medium", { rng: mulberry32(777) });
+      var d2 = rtd.buildItem("medium", { rng: mulberry32(777) });
+      assert("same seed -> identical prompt", d1.prompt === d2.prompt);
+      assert("same seed -> identical options & correctIndex",
+        d1.options.join(",") === d2.options.join(",") && d1.correctIndex === d2.correctIndex);
+
+      var fDist = rtd.generate("medium", { rng: mulberry32(1), r: 60, t: 2, form: "distance", noun: "car" });
+      check("forced distance r=60,t=2 -> d", fDist.d, 120);
+      check("forced distance r=60,t=2 -> answer", fDist.answer, 120);
+      assert("forced distance prompt states the givens (60 mph, 2 hours), not the answer",
+        /60/.test(fDist.prompt) && /\b2\b/.test(fDist.prompt) && (fDist.prompt.match(/\d+/g) || []).map(Number).indexOf(120) === -1);
+      check("forced distance explain", rtd.explain(fDist), "Distance = speed × time = 60 × 2 = 120 miles.");
+
+      var fSpeed = rtd.generate("medium", { rng: mulberry32(2), r: 50, t: 3, form: "speed", noun: "train" });
+      check("forced speed r=50,t=3 -> d", fSpeed.d, 150);
+      check("forced speed r=50,t=3 -> answer", fSpeed.answer, 50);
+      check("forced speed explain", rtd.explain(fSpeed), "Speed = distance ÷ time = 150 ÷ 3 = 50 mph.");
+
+      var fTime = rtd.generate("medium", { rng: mulberry32(3), r: 40, t: 4, form: "time", noun: "bus" });
+      check("forced time r=40,t=4 -> d", fTime.d, 160);
+      check("forced time r=40,t=4 -> answer", fTime.answer, 4);
+      check("forced time explain", rtd.explain(fTime), "Time = distance ÷ speed = 160 ÷ 40 = 4 hours.");
+
+      // --- concrete samples, printed for human eyeballing -----------------
+      heading("RTD — concrete sample items (eyeball check)");
+      var rngEx = mulberry32(17);
+      FORMS.forEach(function (form) {
+        var ex = rtd.buildItem("medium", { rng: rngEx, form: form });
+        var tags = ex.optionMeta.map(function (o) {
+          return o.value + (o.correct ? "✓" : "[" + (o.kind === "error" ? o.pattern : "filler") + "]");
+        });
+        note(form + ":  " + ex.prompt + "   options → " + tags.join("  "));
+      });
+      note("FLAG AR-F-1 (§6/§8): difficulty→range mapping & 29:00 timing are UNVALIDATED defaults, " +
+        "pending cadet-tester / TCO confirmation. FLAG AR-F-4: noun bank limited to 30–75 mph vehicles.");
+
+      // ====================================================================
+      //  AR ENGINE (the copy) — drills, scoring, registry isolation
+      // ====================================================================
+      heading("AR ENGINE — generateDrill builds N valid items");
+      var enRng = mulberry32(192837465);
+      var EDRILLS = 200, ITEMS = 25, edOk = 0, edFail = null;
+      for (var e = 0; e < EDRILLS; e++) {
+        var dr = engine.generateDrill({ itemCount: ITEMS, rng: enRng });
+        var probs3 = [];
+        if (dr.items.length !== ITEMS) probs3.push("count " + dr.items.length);
+        for (var m = 0; m < dr.items.length; m++) {
+          var it = dr.items[m];
+          if (it.cartridge !== "rtd") { probs3.push("non-rtd item"); break; }
+          if (!it.prompt || it.prompt.length < 3) { probs3.push("missing prompt"); break; }
+          if (it.options.length !== 5) { probs3.push("not 5 options"); break; }
+          if (!(it.correctIndex >= 0 && it.correctIndex <= 4)) { probs3.push("correctIndex out of range"); break; }
+          if (!it.explain || it.explain.length < 5) { probs3.push("missing explain"); break; }
+        }
+        if (probs3.length === 0) edOk++;
+        else if (!edFail) edFail = probs3.join("; ");
+      }
+      assert(edOk + "/" + EDRILLS + " drills: " + ITEMS + " items each, all rtd with prompt/5 options/correctIndex 0–4/explain" +
+        (edFail ? " — first failure: " + edFail : ""), edOk === EDRILLS);
+
+      heading("AR ENGINE — scoring (number-correct, no guessing penalty)");
+      var sItems = [
+        { correctIndex: 0, options: [10, 20, 30, 40, 50], prompt: "p1", explain: "e1" },
+        { correctIndex: 2, options: [1, 2, 3, 4, 5], prompt: "p2", explain: "e2" },
+        { correctIndex: 4, options: [5, 6, 7, 8, 9], prompt: "p3", explain: "e3" },
+      ];
+      check("scoreDrill counts a right/wrong mix (2 of 3)", engine.scoreDrill(sItems, [0, 1, 4]), 2);
+      check("scoreDrill all-correct (3 of 3)", engine.scoreDrill(sItems, [0, 2, 4]), 3);
+      check("scoreDrill all-blank is 0 (no penalty)", engine.scoreDrill(sItems, [null, null, null]), 0);
+      check("scoreDrill with undefined answer counts it wrong (2 of 3)", engine.scoreDrill(sItems, [0, 2]), 2);
+      check("scoreDrill with missing answers array treats all wrong", engine.scoreDrill(sItems, []), 0);
+      var rev = engine.reviewMissed(sItems, [0, 1, null]);
+      assert("reviewMissed lists the 2 wrong with chosen/correct/method",
+        rev.length === 2 && rev[0].number === 2 && rev[0].chosen === 2 && rev[0].correct === 3 &&
+        rev[0].explain === "e2" && rev[1].chosen === null && rev[1].correct === 9);
+
+      heading("AR ENGINE — registry isolation from Math Knowledge (spec §3)");
+      assert("AR engine has rtd, NOT MK's linear (byId)",
+        !!engine.byId("rtd") && engine.byId("linear") === null);
+      assert("AR registry holds exactly [rtd]: " + engine.cartridges().map(function (c) { return c.id; }).join(","),
+        engine.cartridges().length === 1 && engine.cartridges()[0].id === "rtd");
+      var mkEngine = window.MathKnowledge.engine;
+      assert("MK engine has linear, NOT AR's rtd (byId)",
+        !!mkEngine.byId("linear") && mkEngine.byId("rtd") === null);
+      assert("AR engine and MK engine are independent objects",
+        engine !== mkEngine);
+
+      var summary = document.getElementById("summary");
+      summary.className = failed === 0 ? "ok" : "bad";
+      summary.textContent =
+        failed === 0
+          ? "ALL PASS — " + passed + "/" + (passed + failed)
+          : failed + " FAILED — " + passed + "/" + (passed + failed) + " passed";
+    })();
+  </script>
+</body>
+</html>

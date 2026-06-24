@@ -14,11 +14,13 @@
     engine = require("./engine.js");
     defaults = [
       require("./rateTimeDistance.js"),
+      require("./percentages.js"),
+      require("./proportions.js"),
     ];
   } else {
     AR = root.ArithmeticReasoning || {};
     engine = AR.engine;
-    defaults = [AR.rateTimeDistance];
+    defaults = [AR.rateTimeDistance, AR.percentages, AR.proportions];
   }
 
   for (var i = 0; i < defaults.length; i++) {

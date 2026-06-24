@@ -17,7 +17,7 @@
   </style>
 </head>
 <body>
-  <h1>Arithmetic Reasoning — tests (slice 1: clean-answer guard + rate/time/distance cartridge + AR engine)</h1>
+  <h1>Arithmetic Reasoning — tests (clean-answer guard + rate/time/distance, percentages & proportions cartridges + AR engine)</h1>
   <div id="results"></div>
   <div id="summary"></div>
 
@@ -25,6 +25,8 @@
        AR's OWN copied engine + cartridge (spec §3). -->
   <script src="src/arithmeticReasoning/cleanAnswer.js"></script>
   <script src="src/arithmeticReasoning/rateTimeDistance.js"></script>
+  <script src="src/arithmeticReasoning/percentages.js"></script>
+  <script src="src/arithmeticReasoning/proportions.js"></script>
   <script src="src/arithmeticReasoning/engine.js"></script>
   <script src="src/arithmeticReasoning/registerCartridges.js"></script>
   <!-- Math Knowledge engine too — loaded ONLY so the registry-isolation group can
@@ -59,6 +61,37 @@
         return o;
       }
       var rtd = withEngineBuild(AR.rateTimeDistance);
+
+      // Same alias for percentages (re-attaches part/whole/percent/form).
+      function withEngineBuildPct(cart) {
+        var o = Object.create(cart);
+        o.buildItem = function (difficulty, opts) {
+          var it = engine.buildItem(cart, difficulty, opts);
+          it.part = it.problem.part;
+          it.whole = it.problem.whole;
+          it.percent = it.problem.percent;
+          it.form = it.problem.form;
+          return it;
+        };
+        return o;
+      }
+      var pct = withEngineBuildPct(AR.percentages);
+
+      // Same alias for proportions (re-attaches a/b/c/d/ask).
+      function withEngineBuildProp(cart) {
+        var o = Object.create(cart);
+        o.buildItem = function (difficulty, opts) {
+          var it = engine.buildItem(cart, difficulty, opts);
+          it.a = it.problem.a;
+          it.b = it.problem.b;
+          it.c = it.problem.c;
+          it.d = it.problem.d;
+          it.ask = it.problem.ask;
+          return it;
+        };
+        return o;
+      }
+      var prop = withEngineBuildProp(AR.proportions);
 
       var results = document.getElementById("results");
       var passed = 0, failed = 0;
@@ -293,28 +326,297 @@
         "pending cadet-tester / TCO confirmation. FLAG AR-F-4: noun bank limited to 30–75 mph vehicles.");
 
       // ====================================================================
+      //  PERCENTAGES CARTRIDGE (§4.2/§4.4/§6) — across forms & tiers
+      // ====================================================================
+      var PCT_FORMS = ["part", "percent", "whole"];
+      function pctExpected(p) { return p.form === "part" ? p.part : p.form === "percent" ? p.percent : p.whole; }
+      function pctGivens(p) {
+        return p.form === "part" ? [p.whole, p.percent]
+             : p.form === "percent" ? [p.part, p.whole]
+             : [p.part, p.percent];
+      }
+
+      // --- correct answer clean integer; part = whole×percent/100; answer = form var --
+      heading("PCT — correct answer clean integer, part = whole×pct/100, answer matches form (§4.2)");
+      var pcRng = mulberry32(30260623);
+      var PCN = 6000, pcOk = 0, pcFail = null;
+      var pctSeen = { part: 0, percent: 0, whole: 0 };
+      for (var pi = 0; pi < PCN; pi++) {
+        var pp = pct.generate(LEVELS[pi % 3], { rng: pcRng });
+        pctSeen[pp.form]++;
+        var pprobs = [];
+        if (!clean.isCleanInteger(pp.answer)) pprobs.push("answer not clean int: " + pp.answer);
+        if (pp.part !== pp.whole * pp.percent / 100) pprobs.push("part != whole*pct/100");
+        if (pp.answer !== pctExpected(pp)) pprobs.push("answer != form variable (" + pp.form + ")");
+        if (pprobs.length === 0) pcOk++;
+        else if (!pcFail) pcFail = pp.form + " " + pp.difficulty + ": " + pprobs.join("; ") +
+          "  [part=" + pp.part + " whole=" + pp.whole + " pct=" + pp.percent + " ans=" + pp.answer + "]";
+      }
+      assert(pcOk + "/" + PCN + " items: answer is a clean integer, part=whole×pct/100, answer = form variable" +
+        (pcFail ? " — first failure: " + pcFail : ""), pcOk === PCN);
+      note("form coverage (rng-chosen): " + JSON.stringify(pctSeen));
+
+      // --- all five options clean integers (§4.2) -------------------------
+      heading("PCT — all five options clean integers (§4.2)");
+      var pcoRng = mulberry32(31415926);
+      var PCO = 6000, pcoOk = 0, pcoFail = null;
+      for (var pj = 0; pj < PCO; pj++) {
+        var poit = pct.buildItem(LEVELS[pj % 3], { rng: pcoRng });
+        var pugly = poit.options.filter(function (v) { return !clean.isCleanInteger(v); });
+        if (pugly.length === 0) pcoOk++;
+        else if (!pcoFail) pcoFail = poit.form + ": ugly " + pugly.join(",") + " [" + poit.options.join(",") + "]";
+      }
+      assert(pcoOk + "/" + PCO + " items: all 5 options are clean integers" +
+        (pcoFail ? " — first failure: " + pcoFail : ""), pcoOk === PCO);
+
+      // --- distractors: count, uniqueness, 5-distinct set, >=2 real ---------
+      heading("PCT — 4 distinct distractors, 5-distinct option set, >=2 real patterns (§4.4)");
+      var pcdRng = mulberry32(27182818);
+      var PCD = 6000, pcdOk = 0, pcdFail = null;
+      var pctMin = { part: 99, percent: 99, whole: 99 };
+      for (var pk = 0; pk < PCD; pk++) {
+        var pform = PCT_FORMS[pk % 3];
+        var pdit = pct.buildItem(LEVELS[pk % 3], { rng: pcdRng, form: pform });
+        var pprobs2 = [];
+        if (pdit.options.length !== 5) pprobs2.push("not 5 options");
+        if (new Set(pdit.options).size !== 5) pprobs2.push("5-option set not all distinct");
+        if (pdit.options[pdit.correctIndex] !== pdit.answer) pprobs2.push("correctIndex wrong");
+        var pds = pdit.optionMeta.filter(function (o) { return !o.correct; });
+        if (pds.length !== 4) pprobs2.push("not exactly 4 distractors");
+        if (new Set(pds.map(function (o) { return o.value; })).size !== 4) pprobs2.push("distractors not all distinct");
+        for (var pz = 0; pz < pds.length; pz++) {
+          if (!clean.isCleanInteger(pds[pz].value)) { pprobs2.push("unclean distractor " + pds[pz].value); break; }
+          if (pds[pz].value === pdit.answer) { pprobs2.push("distractor equals answer"); break; }
+        }
+        var perr = pds.filter(function (o) { return o.kind === "error"; }).length;
+        if (perr < 2) pprobs2.push("only " + perr + " real error patterns");
+        if (perr < pctMin[pform]) pctMin[pform] = perr;
+        if (pprobs2.length === 0) pcdOk++;
+        else if (!pcdFail) pcdFail = pform + ": " + pprobs2.join("; ") + " [ans " + pdit.answer + " -> " + pdit.options.join(",") + "]";
+      }
+      assert(pcdOk + "/" + PCD + " items: 5 distinct options, exactly 4 distractors (clean, ≠answer), >=2 real patterns" +
+        (pcdFail ? " — first failure: " + pcdFail : ""), pcdOk === PCD);
+      assert("every form clears the floor (min real patterns — part:" + pctMin.part +
+        " percent:" + pctMin.percent + " whole:" + pctMin.whole + ", floor 2)",
+        pctMin.part >= 2 && pctMin.percent >= 2 && pctMin.whole >= 2);
+
+      // --- the prompt never leaks the asked quantity (§6) -----------------
+      heading("PCT — prompt never states the asked quantity (no answer leak)");
+      var pclRng = mulberry32(16180339);
+      var PCL = 6000, pclOk = 0, pclFail = null;
+      for (var pl = 0; pl < PCL; pl++) {
+        var plp = pct.generate(LEVELS[pl % 3], { rng: pclRng });
+        var pnums = (plp.prompt.match(/\d+/g) || []).map(Number);
+        var pgiv = pctGivens(plp);
+        var pleaked = pnums.indexOf(plp.answer) !== -1;
+        var pgivPresent = pgiv.every(function (g) { return pnums.indexOf(g) !== -1; });
+        if (!pleaked && pgivPresent) pclOk++;
+        else if (!pclFail) pclFail = plp.form + ": ans " + plp.answer + " givens " + pgiv.join(",") +
+          " prompt nums " + pnums.join(",") + "  [" + plp.prompt + "]";
+      }
+      assert(pclOk + "/" + PCL + " items: answer absent from prompt, both givens present" +
+        (pclFail ? " — first failure: " + pclFail : ""), pclOk === PCL);
+
+      // --- determinism: same seed -> identical item; forced cases documented --
+      heading("PCT — determinism & forced cases (§5.2 / §6)");
+      var pd1 = pct.buildItem("medium", { rng: mulberry32(888) });
+      var pd2 = pct.buildItem("medium", { rng: mulberry32(888) });
+      assert("same seed -> identical prompt", pd1.prompt === pd2.prompt);
+      assert("same seed -> identical options & correctIndex",
+        pd1.options.join(",") === pd2.options.join(",") && pd1.correctIndex === pd2.correctIndex);
+
+      var fPart = pct.generate("medium", { rng: mulberry32(1), percent: 25, whole: 80, form: "part" });
+      check("forced part pct=25,whole=80 -> part", fPart.part, 20);
+      check("forced part pct=25,whole=80 -> answer", fPart.answer, 20);
+      assert("forced part prompt states givens (80, 25%), not the answer 20",
+        /80/.test(fPart.prompt) && /25/.test(fPart.prompt) && (fPart.prompt.match(/\d+/g) || []).map(Number).indexOf(20) === -1);
+      check("forced part explain", pct.explain(fPart), "Part = whole × percent ÷ 100 = 80 × 25 ÷ 100 = 20.");
+
+      var fPctForm = pct.generate("medium", { rng: mulberry32(2), part: 15, whole: 50, form: "percent" });
+      check("forced percent part=15,whole=50 -> answer", fPctForm.answer, 30);
+      check("forced percent explain", pct.explain(fPctForm), "Percent = part ÷ whole × 100 = 15 ÷ 50 × 100 = 30%.");
+
+      var fWhole = pct.generate("medium", { rng: mulberry32(3), part: 30, percent: 75, form: "whole" });
+      check("forced whole part=30,pct=75 -> answer", fWhole.answer, 40);
+      check("forced whole explain", pct.explain(fWhole), "Whole = part ÷ percent × 100 = 30 ÷ 75 × 100 = 40.");
+
+      heading("PCT — concrete sample items (eyeball check)");
+      var pcExRng = mulberry32(23);
+      PCT_FORMS.forEach(function (form) {
+        var ex = pct.buildItem("medium", { rng: pcExRng, form: form });
+        var tags = ex.optionMeta.map(function (o) {
+          return o.value + (o.correct ? "✓" : "[" + (o.kind === "error" ? o.pattern : "filler") + "]");
+        });
+        note(form + ":  " + ex.prompt + "   options → " + tags.join("  "));
+      });
+
+      // ====================================================================
+      //  PROPORTIONS CARTRIDGE (§4.2/§4.4/§6) — across unknown positions & tiers
+      // ====================================================================
+      var PROP_ASKS = ["a", "b", "c", "d"];
+      function propExpected(p) { return p.ask === "a" ? p.a : p.ask === "b" ? p.b : p.ask === "c" ? p.c : p.d; }
+      function propGivens(p) {
+        return p.ask === "a" ? [p.b, p.c, p.d]
+             : p.ask === "b" ? [p.a, p.c, p.d]
+             : p.ask === "c" ? [p.a, p.b, p.d]
+             : [p.a, p.b, p.c];
+      }
+
+      // --- correct answer clean integer; a*d===b*c; answer = asked term -----
+      heading("PROP — correct answer clean integer, a×d = b×c, answer matches asked term (§4.2)");
+      var prRng = mulberry32(40260624);
+      var PRN = 8000, prOk = 0, prFail = null;
+      var askSeen = { a: 0, b: 0, c: 0, d: 0 };
+      for (var ri = 0; ri < PRN; ri++) {
+        var rp = prop.generate(LEVELS[ri % 3], { rng: prRng });
+        askSeen[rp.ask]++;
+        var rprobs = [];
+        if (!clean.isCleanInteger(rp.answer)) rprobs.push("answer not clean int: " + rp.answer);
+        if (rp.a * rp.d !== rp.b * rp.c) rprobs.push("a*d != b*c");
+        if (rp.answer !== propExpected(rp)) rprobs.push("answer != asked term (" + rp.ask + ")");
+        if (rprobs.length === 0) prOk++;
+        else if (!prFail) prFail = rp.ask + " " + rp.difficulty + ": " + rprobs.join("; ") +
+          "  [" + rp.a + ":" + rp.b + "=" + rp.c + ":" + rp.d + " ans=" + rp.answer + "]";
+      }
+      assert(prOk + "/" + PRN + " items: answer is a clean integer, a×d = b×c, answer = asked term" +
+        (prFail ? " — first failure: " + prFail : ""), prOk === PRN);
+      note("unknown-position coverage (rng-chosen): " + JSON.stringify(askSeen));
+
+      // --- all five options clean integers (§4.2) -------------------------
+      heading("PROP — all five options clean integers (§4.2)");
+      var proRng = mulberry32(14142135);
+      var PRO = 8000, proOk = 0, proFail = null;
+      for (var rj = 0; rj < PRO; rj++) {
+        var roit = prop.buildItem(LEVELS[rj % 3], { rng: proRng });
+        var rugly = roit.options.filter(function (v) { return !clean.isCleanInteger(v); });
+        if (rugly.length === 0) proOk++;
+        else if (!proFail) proFail = roit.ask + ": ugly " + rugly.join(",") + " [" + roit.options.join(",") + "]";
+      }
+      assert(proOk + "/" + PRO + " items: all 5 options are clean integers" +
+        (proFail ? " — first failure: " + proFail : ""), proOk === PRO);
+
+      // --- distractors: count, uniqueness, 5-distinct set, >=2 real ---------
+      heading("PROP — 4 distinct distractors, 5-distinct option set, >=2 real patterns (§4.4)");
+      var prdRng = mulberry32(17320508);
+      var PRD = 8000, prdOk = 0, prdFail = null;
+      var askMin = { a: 99, b: 99, c: 99, d: 99 };
+      for (var rk = 0; rk < PRD; rk++) {
+        var rask = PROP_ASKS[rk % 4];
+        var rdit = prop.buildItem(LEVELS[rk % 3], { rng: prdRng, ask: rask });
+        var rprobs2 = [];
+        if (rdit.options.length !== 5) rprobs2.push("not 5 options");
+        if (new Set(rdit.options).size !== 5) rprobs2.push("5-option set not all distinct");
+        if (rdit.options[rdit.correctIndex] !== rdit.answer) rprobs2.push("correctIndex wrong");
+        var rds = rdit.optionMeta.filter(function (o) { return !o.correct; });
+        if (rds.length !== 4) rprobs2.push("not exactly 4 distractors");
+        if (new Set(rds.map(function (o) { return o.value; })).size !== 4) rprobs2.push("distractors not all distinct");
+        for (var rz = 0; rz < rds.length; rz++) {
+          if (!clean.isCleanInteger(rds[rz].value)) { rprobs2.push("unclean distractor " + rds[rz].value); break; }
+          if (rds[rz].value === rdit.answer) { rprobs2.push("distractor equals answer"); break; }
+        }
+        var rerr = rds.filter(function (o) { return o.kind === "error"; }).length;
+        if (rerr < 2) rprobs2.push("only " + rerr + " real error patterns");
+        if (rerr < askMin[rask]) askMin[rask] = rerr;
+        if (rprobs2.length === 0) prdOk++;
+        else if (!prdFail) prdFail = rask + ": " + rprobs2.join("; ") + " [ans " + rdit.answer + " -> " + rdit.options.join(",") + "]";
+      }
+      assert(prdOk + "/" + PRD + " items: 5 distinct options, exactly 4 distractors (clean, ≠answer), >=2 real patterns" +
+        (prdFail ? " — first failure: " + prdFail : ""), prdOk === PRD);
+      assert("every unknown position clears the floor (min real patterns — a:" + askMin.a +
+        " b:" + askMin.b + " c:" + askMin.c + " d:" + askMin.d + ", floor 2)",
+        askMin.a >= 2 && askMin.b >= 2 && askMin.c >= 2 && askMin.d >= 2);
+
+      // --- the prompt never leaks the asked quantity (§6) -----------------
+      heading("PROP — prompt never states the asked quantity (no answer leak)");
+      var prlRng = mulberry32(22360679);
+      var PRL = 8000, prlOk = 0, prlFail = null;
+      for (var rl = 0; rl < PRL; rl++) {
+        var rlp = prop.generate(LEVELS[rl % 3], { rng: prlRng });
+        var rnums = (rlp.prompt.match(/\d+/g) || []).map(Number);
+        var rgiv = propGivens(rlp);
+        var rleaked = rnums.indexOf(rlp.answer) !== -1;
+        var rgivPresent = rgiv.every(function (g) { return rnums.indexOf(g) !== -1; });
+        if (!rleaked && rgivPresent) prlOk++;
+        else if (!prlFail) prlFail = rlp.ask + ": ans " + rlp.answer + " givens " + rgiv.join(",") +
+          " prompt nums " + rnums.join(",") + "  [" + rlp.prompt + "]";
+      }
+      assert(prlOk + "/" + PRL + " items: answer absent from prompt, all three givens present" +
+        (prlFail ? " — first failure: " + prlFail : ""), prlOk === PRL);
+
+      // --- determinism: same seed -> identical item; forced cases documented --
+      heading("PROP — determinism & forced cases (§5.2 / §6)");
+      var rd1 = prop.buildItem("medium", { rng: mulberry32(999) });
+      var rd2 = prop.buildItem("medium", { rng: mulberry32(999) });
+      assert("same seed -> identical prompt", rd1.prompt === rd2.prompt);
+      assert("same seed -> identical options & correctIndex",
+        rd1.options.join(",") === rd2.options.join(",") && rd1.correctIndex === rd2.correctIndex);
+
+      var fAskC = prop.generate("medium", { rng: mulberry32(1), ratioA: 2, ratioB: 5, scale: 3, ask: "c" });
+      check("forced 2:5×3 ask c -> term c", fAskC.c, 6);
+      check("forced 2:5×3 ask c -> answer", fAskC.answer, 6);
+      assert("forced ask-c ratios equal (a×d = b×c)", fAskC.a * fAskC.d === fAskC.b * fAskC.c);
+      assert("forced ask-c prompt states givens (2,5,15), not the answer 6",
+        (fAskC.prompt.match(/\d+/g) || []).map(Number).indexOf(6) === -1);
+      check("forced ask-c explain", prop.explain(fAskC),
+        "Equal ratios: 2/5 = ?/15. Cross-multiply and solve for the missing term: (2 × 15) ÷ 5 = 6.");
+
+      var fAskD = prop.generate("medium", { rng: mulberry32(2), ratioA: 3, ratioB: 4, scale: 4, ask: "d" });
+      check("forced 3:4×4 ask d -> answer", fAskD.answer, 16);
+      check("forced ask-d explain", prop.explain(fAskD),
+        "Equal ratios: 3/4 = 12/?. Cross-multiply and solve for the missing term: (4 × 12) ÷ 3 = 16.");
+
+      var fAskA = prop.generate("medium", { rng: mulberry32(3), ratioA: 2, ratioB: 5, scale: 3, ask: "a" });
+      check("forced 2:5×3 ask a -> answer", fAskA.answer, 2);
+      var fAskB = prop.generate("medium", { rng: mulberry32(4), ratioA: 3, ratioB: 4, scale: 4, ask: "b" });
+      check("forced 3:4×4 ask b -> answer", fAskB.answer, 4);
+
+      heading("PROP — concrete sample items (eyeball check)");
+      var prExRng = mulberry32(29);
+      PROP_ASKS.forEach(function (ask) {
+        var ex = prop.buildItem("medium", { rng: prExRng, ask: ask });
+        var tags = ex.optionMeta.map(function (o) {
+          return o.value + (o.correct ? "✓" : "[" + (o.kind === "error" ? o.pattern : "filler") + "]");
+        });
+        note("ask " + ask + ":  " + ex.prompt + "   options → " + tags.join("  "));
+      });
+
+      // ====================================================================
       //  AR ENGINE (the copy) — drills, scoring, registry isolation
       // ====================================================================
-      heading("AR ENGINE — generateDrill builds N valid items");
+      heading("AR ENGINE — generateDrill builds valid items, interleaved across all 3 cartridges");
       var enRng = mulberry32(192837465);
-      var EDRILLS = 200, ITEMS = 25, edOk = 0, edFail = null;
+      var EDRILLS = 300, ITEMS = 25, edOk = 0, edFail = null;
+      var KNOWN_IDS = { rtd: 0, pct: 0, prop: 0 };
+      var allThreeDrills = 0, maxRunFail = null;
       for (var e = 0; e < EDRILLS; e++) {
         var dr = engine.generateDrill({ itemCount: ITEMS, rng: enRng });
         var probs3 = [];
         if (dr.items.length !== ITEMS) probs3.push("count " + dr.items.length);
+        var typesThisDrill = {}, run = 1, maxRun = 1;
         for (var m = 0; m < dr.items.length; m++) {
           var it = dr.items[m];
-          if (it.cartridge !== "rtd") { probs3.push("non-rtd item"); break; }
+          if (!(it.cartridge in KNOWN_IDS)) { probs3.push("unknown cartridge " + it.cartridge); break; }
+          KNOWN_IDS[it.cartridge]++;
+          typesThisDrill[it.cartridge] = (typesThisDrill[it.cartridge] || 0) + 1;
+          if (m > 0 && it.cartridge === dr.items[m - 1].cartridge) { run++; if (run > maxRun) maxRun = run; }
+          else run = 1;
           if (!it.prompt || it.prompt.length < 3) { probs3.push("missing prompt"); break; }
           if (it.options.length !== 5) { probs3.push("not 5 options"); break; }
           if (!(it.correctIndex >= 0 && it.correctIndex <= 4)) { probs3.push("correctIndex out of range"); break; }
           if (!it.explain || it.explain.length < 5) { probs3.push("missing explain"); break; }
         }
+        if (Object.keys(typesThisDrill).length === 3) allThreeDrills++;
+        if (maxRun > 2 && !maxRunFail) maxRunFail = "run of " + maxRun;
         if (probs3.length === 0) edOk++;
         else if (!edFail) edFail = probs3.join("; ");
       }
-      assert(edOk + "/" + EDRILLS + " drills: " + ITEMS + " items each, all rtd with prompt/5 options/correctIndex 0–4/explain" +
+      assert(edOk + "/" + EDRILLS + " drills: " + ITEMS + " items each, all valid (known cartridge / prompt / 5 options / correctIndex 0–4 / explain)" +
         (edFail ? " — first failure: " + edFail : ""), edOk === EDRILLS);
+      assert("interleaving pulls from ALL THREE cartridges over the run (rtd:" + KNOWN_IDS.rtd +
+        " pct:" + KNOWN_IDS.pct + " prop:" + KNOWN_IDS.prop + ")",
+        KNOWN_IDS.rtd > 0 && KNOWN_IDS.pct > 0 && KNOWN_IDS.prop > 0);
+      assert(allThreeDrills + "/" + EDRILLS + " individual drills contain all 3 types, none blocked (no run of one type > 2)" +
+        (maxRunFail ? " — " + maxRunFail : ""), allThreeDrills === EDRILLS && maxRunFail === null);
 
       heading("AR ENGINE — scoring (number-correct, no guessing penalty)");
       var sItems = [
@@ -333,13 +635,16 @@
         rev[0].explain === "e2" && rev[1].chosen === null && rev[1].correct === 9);
 
       heading("AR ENGINE — registry isolation from Math Knowledge (spec §3)");
-      assert("AR engine has rtd, NOT MK's linear (byId)",
-        !!engine.byId("rtd") && engine.byId("linear") === null);
-      assert("AR registry holds exactly [rtd]: " + engine.cartridges().map(function (c) { return c.id; }).join(","),
-        engine.cartridges().length === 1 && engine.cartridges()[0].id === "rtd");
+      assert("AR engine has rtd/pct/prop, NOT MK's linear (byId)",
+        !!engine.byId("rtd") && !!engine.byId("pct") && !!engine.byId("prop") && engine.byId("linear") === null);
+      var arIds = engine.cartridges().map(function (c) { return c.id; });
+      assert("AR registry holds exactly [rtd,pct,prop]: " + arIds.join(","),
+        engine.cartridges().length === 3 &&
+        arIds.indexOf("rtd") !== -1 && arIds.indexOf("pct") !== -1 && arIds.indexOf("prop") !== -1);
       var mkEngine = window.MathKnowledge.engine;
-      assert("MK engine has linear, NOT AR's rtd (byId)",
-        !!mkEngine.byId("linear") && mkEngine.byId("rtd") === null);
+      assert("MK engine has linear, NOT AR's rtd/pct/prop (byId)",
+        !!mkEngine.byId("linear") && mkEngine.byId("rtd") === null &&
+        mkEngine.byId("pct") === null && mkEngine.byId("prop") === null);
       assert("AR engine and MK engine are independent objects",
         engine !== mkEngine);
 

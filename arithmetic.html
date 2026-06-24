@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GatorVector — Arithmetic Reasoning</title>
+  <style>
+    :root {
+      --ink: #1a1a1a;
+      --muted: #5f6368;
+      --line: #d0d0d0;
+      --accent: #0b6e4f;
+      --bad: #c5221f;
+      --bg: #fafafa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 1.25rem; }
+    h1 { font-size: 1.25rem; margin: 0 0 0.25rem; }
+    .tagline { color: var(--muted); margin: 0 0 1.25rem; font-size: 0.9rem; }
+    .homelink {
+      display: inline-block; color: var(--muted); text-decoration: none;
+      font-size: 0.85rem; margin-bottom: 0.5rem;
+    }
+    .homelink:hover { color: var(--accent); text-decoration: underline; }
+    .hidden { display: none !important; }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+    }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      font-size: 1.05rem;
+      padding: 0.75rem 1.5rem;
+    }
+    button:hover { filter: brightness(0.97); }
+    .linklike {
+      border: none; background: none; color: var(--muted);
+      text-decoration: underline; padding: 0.25rem; font-size: 0.85rem;
+    }
+
+    /* --- START --- */
+    .best {
+      margin: 1rem 0;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      display: inline-block;
+    }
+    .best strong { color: var(--accent); }
+    .modepick { display: flex; gap: 0.75rem; margin: 0.75rem 0; flex-wrap: wrap; }
+    button.primary.alt { background: #fff; color: var(--accent); }
+    .modehint { color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
+
+    /* --- DRILL header --- */
+    .drillbar {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+    }
+    .timer {
+      font-variant-numeric: tabular-nums;
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .timer.low { color: var(--bad); }
+    .progress { color: var(--muted); font-size: 0.95rem; }
+    .tally { font-weight: 700; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+
+    /* --- QUESTION + OPTIONS --- */
+    .qcard {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      padding: 1.25rem 1.25rem 1.4rem;
+    }
+    .prompt {
+      font-size: 1.7rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.01em;
+      margin: 0 0 1rem;
+      line-height: 1.3;
+    }
+    /* Vertical A–E list, test-style. */
+    .options { display: flex; flex-direction: column; gap: 0.5rem; }
+    .options button {
+      display: flex;
+      align-items: baseline;
+      gap: 0.7rem;
+      text-align: left;
+      font-variant-numeric: tabular-nums;
+      font-size: 1.1rem;
+      padding: 0.7rem 0.9rem;
+      width: 100%;
+    }
+    .options .optletter {
+      color: var(--accent);
+      font-weight: 700;
+      min-width: 1.4rem;
+    }
+    .options button:disabled { cursor: default; }
+    .options button.opt-correct {
+      border-color: var(--accent); background: #eef7f2; color: var(--accent); font-weight: 700;
+    }
+    .options button.opt-correct .optletter { color: var(--accent); }
+    .options button.opt-wrong {
+      border-color: var(--bad); background: #fdeeee; color: var(--bad);
+    }
+    .options button.opt-wrong .optletter { color: var(--bad); }
+
+    /* --- PRACTICE feedback --- */
+    .feedback {
+      border: 1px solid var(--line); border-radius: 8px; background: #fff;
+      padding: 0.7rem 0.95rem; font-size: 1.05rem; max-width: 640px;
+      margin: 0.9rem 0 0;
+    }
+    .feedback.right { border-color: var(--accent); background: #eef7f2; }
+    .feedback.wrong { border-color: var(--bad); background: #fdeeee; }
+    .feedback .verdict { font-weight: 700; }
+    .feedback.right .verdict { color: var(--accent); }
+    .feedback.wrong .verdict { color: var(--bad); }
+    .feedback .why { color: var(--muted); margin-top: 0.3rem; font-size: 0.92rem; line-height: 1.5; }
+
+    /* --- RESULTS --- */
+    .score { font-size: 2rem; font-weight: 800; margin: 0.5rem 0 0.25rem; }
+    .score .of { color: var(--muted); font-weight: 600; font-size: 1.1rem; }
+    .meta { color: var(--muted); margin-bottom: 1rem; }
+    table.review { border-collapse: collapse; width: 100%; background: #fff; }
+    table.review th, table.review td {
+      border: 1px solid var(--line); padding: 0.45rem 0.6rem; text-align: left;
+      font-variant-numeric: tabular-nums; font-size: 0.95rem; vertical-align: top;
+    }
+    table.review th { background: #f0f0f0; }
+    table.review td.correct { color: var(--accent); font-weight: 600; }
+    table.review td.chosen { color: var(--bad); }
+    table.review .method { color: var(--muted); font-size: 0.85rem; }
+    .allright { color: var(--accent); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="homelink" href="index.html">← All drills</a>
+    <h1>Arithmetic Reasoning</h1>
+    <p class="tagline">AFOQT word-problem drill — read, set up, solve; no calculator, 5 choices. Same skill area as the Quantitative composite. Unofficial study aid.</p>
+
+    <!-- ============ START ============ -->
+    <section id="screen-start">
+      <p>Word problems: rate / time / distance (d = r × t), drawn at random.</p>
+      <div id="best" class="best hidden"></div>
+      <div class="modepick">
+        <button id="btn-start" class="primary">Timed Drill</button>
+        <button id="btn-practice" class="primary alt">Practice</button>
+      </div>
+      <p class="modehint">
+        <strong>Timed Drill:</strong> 25 items, 29:00 clock, no feedback — real AR test conditions.<br>
+        <strong>Practice:</strong> untimed, immediate feedback and the method after each answer; go as long as you like.
+      </p>
+    </section>
+
+    <!-- ============ DRILL ============ -->
+    <section id="screen-drill" class="hidden">
+      <div class="drillbar">
+        <div class="timer" id="timer">29:00</div>
+        <div class="progress" id="progress">Item 1 of 25</div>
+        <button class="linklike" id="btn-end">End drill early</button>
+      </div>
+      <div class="qcard">
+        <div class="prompt" id="prompt">—</div>
+        <div class="options" id="options"></div>
+      </div>
+    </section>
+
+    <!-- ============ PRACTICE ============ -->
+    <section id="screen-practice" class="hidden">
+      <div class="drillbar">
+        <div class="tally" id="p-tally">0 correct of 0</div>
+        <button class="linklike" id="btn-end-practice">End practice</button>
+      </div>
+      <div class="qcard">
+        <div class="prompt" id="p-prompt">—</div>
+        <div class="options" id="p-options"></div>
+        <div class="feedback hidden" id="p-feedback"></div>
+        <div id="p-next-wrap" class="hidden" style="margin-top: 0.9rem;">
+          <button id="btn-next" class="primary">Next →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ RESULTS ============ -->
+    <section id="screen-results" class="hidden">
+      <div class="score"><span id="result-correct">0</span> <span class="of">of <span id="result-total">25</span> correct</span></div>
+      <div class="meta" id="result-meta"></div>
+      <div id="review"></div>
+      <div style="margin-top:1.25rem;">
+        <button id="btn-again" class="primary">New Drill</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- Engine + cartridges (already built + tested) — arithmetic.html only orchestrates.
+       AR's OWN copied engine + registry, kept separate from Math Knowledge (spec §3). -->
+  <script src="src/arithmeticReasoning/cleanAnswer.js"></script>
+  <script src="src/arithmeticReasoning/rateTimeDistance.js"></script>
+  <script src="src/arithmeticReasoning/engine.js"></script>
+  <script src="src/arithmeticReasoning/registerCartridges.js"></script>
+  <script>
+    (function () {
+      var engine = window.ArithmeticReasoning.engine;
+      // FLAG AR-F-1 (spec §7, §8): 29:00 is the paper-pamphlet AR figure; the
+      // eAFOQT timing is unconfirmed. Carried as a CONFIG value, not asserted as
+      // accurate. NOTE: this differs from Math Knowledge's 22:00.
+      var TIME_LIMIT = 29 * 60;       // 29:00 — real AR subtest (spec §2/§7)
+      var ITEM_COUNT = 25;            // real AR subtest length (spec §7)
+      var DIFFICULTY = "medium";      // F-1: level→range mapping is a flagged default
+      var BEST_KEY = "gatorvector.arithmeticReasoning.best.v1";
+      var LETTERS = ["A", "B", "C", "D", "E"];
+
+      // --- tiny DOM helpers (same shape as Table Reading) ---
+      var $ = function (id) { return document.getElementById(id); };
+      function show(name) {
+        ["start", "drill", "practice", "results"].forEach(function (s) {
+          $("screen-" + s).classList.toggle("hidden", s !== name);
+        });
+      }
+      // Render values with a real minus sign so negatives read cleanly.
+      function fmt(n) { return String(n).replace("-", "−"); }
+      function clock(sec) {
+        var m = Math.floor(sec / 60);
+        var s = sec % 60;
+        return m + ":" + (s < 10 ? "0" : "") + s;
+      }
+
+      // --- session state ---
+      var drill, current, answers, timeLeft, timerId;
+
+      // --- START ---
+      function renderBest() {
+        var raw = null;
+        try { raw = localStorage.getItem(BEST_KEY); } catch (e) {}
+        var box = $("best");
+        if (!raw) { box.classList.add("hidden"); return; }
+        var best;
+        try { best = JSON.parse(raw); } catch (e) { box.classList.add("hidden"); return; }
+        box.classList.remove("hidden");
+        box.innerHTML = "Best score: <strong>" + best.score + " / " + best.total +
+          "</strong> &nbsp;<span style='color:var(--muted)'>(" + best.date + ")</span>";
+      }
+
+      // Build a row of A–E option buttons into `container`; onPick(optionIndex).
+      function renderOptions(container, options, onPick) {
+        container.innerHTML = "";
+        options.forEach(function (value, optionIndex) {
+          var b = document.createElement("button");
+          b.innerHTML = "<span class='optletter'>" + LETTERS[optionIndex] + "</span>" +
+            "<span class='optval'>" + fmt(value) + "</span>";
+          b.addEventListener("click", function () { onPick(optionIndex); });
+          container.appendChild(b);
+        });
+      }
+
+      // --- DRILL (timed, no per-item feedback — real test conditions) ---
+      function startDrill() {
+        drill = engine.generateDrill({ difficulty: DIFFICULTY, itemCount: ITEM_COUNT });
+        answers = new Array(drill.items.length);
+        current = 0;
+        timeLeft = TIME_LIMIT;
+
+        renderQuestion();
+        updateTimer();
+        timerId = setInterval(tick, 1000);
+        show("drill");
+      }
+
+      function tick() {
+        timeLeft--;
+        if (timeLeft <= 0) { timeLeft = 0; updateTimer(); endDrill(); return; }
+        updateTimer();
+      }
+
+      function updateTimer() {
+        var t = $("timer");
+        t.textContent = clock(timeLeft);
+        t.classList.toggle("low", timeLeft <= 30);
+      }
+
+      function renderQuestion() {
+        var item = drill.items[current];
+        $("progress").textContent = "Item " + (current + 1) + " of " + drill.items.length;
+        $("prompt").textContent = item.prompt;
+        // TEST CONDITIONS: record the answer and advance — NO right/wrong shown.
+        renderOptions($("options"), item.options, answer);
+      }
+
+      function answer(optionIndex) {
+        answers[current] = optionIndex;
+        current++;
+        if (current >= drill.items.length) { endDrill(); return; }
+        renderQuestion();
+      }
+
+      // --- RESULTS ---
+      function endDrill() {
+        clearInterval(timerId);
+        timerId = null;
+        var timeUsed = TIME_LIMIT - timeLeft;
+        var total = drill.items.length;
+        var score = engine.scoreDrill(drill.items, answers);
+
+        $("result-correct").textContent = score;
+        $("result-total").textContent = total;
+        var answered = answers.filter(function (a) { return a !== undefined; }).length;
+        $("result-meta").textContent =
+          "Time used: " + clock(timeUsed) + " of " + clock(TIME_LIMIT) +
+          " · Answered " + answered + " of " + total;
+
+        renderReview(engine.reviewMissed(drill.items, answers));
+        saveBest(score, total, timeUsed);
+        show("results");
+      }
+
+      function renderReview(missed) {
+        var box = $("review");
+        if (missed.length === 0) {
+          box.innerHTML = "<p class='allright'>No misses — every answered item correct.</p>";
+          return;
+        }
+        var html = ["<p>Missed items (" + missed.length + "):</p>",
+          "<table class='review'><thead><tr>",
+          "<th>#</th><th>Problem</th><th>You chose</th><th>Correct</th>",
+          "</tr></thead><tbody>"];
+        missed.forEach(function (m) {
+          html.push("<tr><td>" + m.number + "</td>" +
+            "<td>" + m.prompt +
+              (m.explain ? "<div class='method'>" + m.explain + "</div>" : "") + "</td>" +
+            "<td class='chosen'>" + (m.chosen === null ? "—" : fmt(m.chosen)) + "</td>" +
+            "<td class='correct'>" + fmt(m.correct) + "</td></tr>");
+        });
+        html.push("</tbody></table>");
+        box.innerHTML = html.join("");
+      }
+
+      function saveBest(score, total, timeUsed) {
+        var prev = null;
+        try { prev = JSON.parse(localStorage.getItem(BEST_KEY)); } catch (e) {}
+        if (prev && prev.score >= score) return; // keep the better run
+        var record = {
+          score: score, total: total, timeUsed: timeUsed,
+          date: new Date().toISOString().slice(0, 10),
+        };
+        try { localStorage.setItem(BEST_KEY, JSON.stringify(record)); } catch (e) {}
+      }
+
+      // --- PRACTICE (untimed, immediate feedback + method, open-ended) ---
+      var pItem, pCount, pCorrect;
+
+      function startPractice() {
+        pCount = 0;
+        pCorrect = 0;
+        updateTally();
+        nextPractice(null);
+        show("practice");
+      }
+
+      function updateTally() {
+        $("p-tally").textContent = pCorrect + " correct of " + pCount;
+      }
+
+      function nextPractice(prevItem) {
+        pItem = engine.nextItem(prevItem, { difficulty: DIFFICULTY });
+        $("p-prompt").textContent = pItem.prompt;
+        $("p-feedback").classList.add("hidden");
+        $("p-next-wrap").classList.add("hidden");
+        renderOptions($("p-options"), pItem.options, answerPractice);
+      }
+
+      function answerPractice(optionIndex) {
+        var correctIndex = pItem.correctIndex;
+        var isRight = optionIndex === correctIndex;
+        pCount++;
+        if (isRight) pCorrect++;
+        updateTally();
+
+        // Lock the options and mark the correct one (and the wrong pick, if any).
+        var btns = $("p-options").children;
+        for (var i = 0; i < btns.length; i++) {
+          btns[i].disabled = true;
+          if (i === correctIndex) btns[i].classList.add("opt-correct");
+          else if (i === optionIndex) btns[i].classList.add("opt-wrong");
+        }
+
+        // Immediate feedback — about the ITEM/method, not the person.
+        var correctValue = pItem.options[correctIndex];
+        var fb = $("p-feedback");
+        fb.className = "feedback " + (isRight ? "right" : "wrong");
+        var lead = isRight
+          ? "<span class='verdict'>Correct.</span> The answer is <strong>" + fmt(correctValue) + "</strong>."
+          : "<span class='verdict'>Not quite.</span> You chose " + fmt(pItem.options[optionIndex]) +
+            "; the answer is <strong>" + fmt(correctValue) + "</strong>.";
+        fb.innerHTML = lead + "<div class='why'>" + pItem.explain + "</div>";
+
+        $("p-next-wrap").classList.remove("hidden");
+      }
+
+      // --- wiring ---
+      $("btn-start").addEventListener("click", startDrill);
+      $("btn-practice").addEventListener("click", startPractice);
+      $("btn-again").addEventListener("click", function () { renderBest(); startDrill(); });
+      $("btn-end").addEventListener("click", endDrill);
+      $("btn-next").addEventListener("click", function () { nextPractice(pItem); });
+      $("btn-end-practice").addEventListener("click", function () { renderBest(); show("start"); });
+
+      renderBest();
+      show("start");
+    })();
+  </script>
+</body>
+</html>
